@@ -49,7 +49,7 @@ Contains
       Real(PR), Intent(In) :: t,x
       Real(PR) :: Tnord
 
-      Tnord = 0._PR!exp(-t)*sin(x)
+      Tnord = exp(-t)*sin(x)
 
    End Function Tnord
 
@@ -57,7 +57,7 @@ Contains
       Real(PR), Intent(In) :: t,x
       Real(PR) :: Tsud
 
-      Tsud = 0._PR!exp(-t)*sin(x)
+      Tsud = exp(-t)*sin(x)
 
    End Function Tsud
 

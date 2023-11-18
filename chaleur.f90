@@ -26,7 +26,7 @@ Program chaleur
    Read(111, *) xmin, xmax, ymin, ymax, tmax, cfl, imax, jmax
    Close(111)
 ! Allocations
-   Allocate(x(0:imax), y(0:imax), xm(imax), ym(imax))
+   Allocate(x(0:imax), y(0:jmax), xm(imax), ym(jmax))
    Allocate(T(imax,jmax), F(0:imax, jmax), G(imax, 0:jmax))
 ! Calcul de deltax et de deltay
    deltax = (xmax - xmin) / imax

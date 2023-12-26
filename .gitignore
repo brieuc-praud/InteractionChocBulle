@@ -1,5 +1,12 @@
+# exe
+euler
+
 # Fortran
+*.o
 *.mod
+
+# Output
+*.vtk
 
 # VIM
 *~

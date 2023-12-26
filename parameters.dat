@@ -1,2 +1,18 @@
--5.0 5.0 -5.0 5.0 3.0 1.0 100 100 1.4 10
-# xmin, xmax, ymin, ymax, tmax, cfl, imax, jmax, gamma, output_modulo
+xmin -5.0
+xmax 5.0
+ymin -5.0
+ymax 5.0
+
+Nx 100
+Ny 100
+
+tmax 3.0
+CFL 0.125
+
+gamma 1.4
+
+
+output_modulo 10
+
+
+case 2

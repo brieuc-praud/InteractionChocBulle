@@ -10,8 +10,12 @@ Program euler
 
     ! Parameters
     Real(PR) xmin, xmax, ymin, ymax, time_max, cfl, gammagp
-    Integer :: imax, jmax
-    Integer :: noutput
+    Integer :: imax, jmax, output_modulo, case_number
+    ! Input related variables
+    Character(len=100) :: buffer, label
+    Integer :: pos
+    Integer :: ios = 0
+    Integer :: line_number = 0
     ! Arrays
     Real(PR), Dimension(:,:,:), Allocatable :: Uvect, Uvect_e, fluxF, fluxG
     Real(PR), Dimension(:), Allocatable :: x, y, xm, ym
@@ -20,9 +24,48 @@ Program euler
     ! Other
     Real(PR) :: deltax, deltay, deltat, time
 
+
     ! Read parameters
     Open(111, File=parameters)
-    Read(111, *) xmin, xmax, ymin, ymax, time_max, cfl, imax, jmax, gammagp, noutput
+    Do While (ios == 0)
+        Read(111, '(A)', IOstat=ios) buffer
+        If (ios == 0) Then
+            line_number = line_number + 1
+
+            pos = SCAN(buffer, ' ')
+            label = buffer(1:pos)
+            buffer = buffer(pos+1:)
+
+            Select Case (label)
+            Case ('xmin')
+                Read(buffer, *, iostat=ios) xmin
+            Case ('xmax')
+                Read(buffer, *, iostat=ios) xmax
+            Case ('ymin')
+                Read(buffer, *, iostat=ios) ymin
+            Case ('ymax')
+                Read(buffer, *, iostat=ios) ymax
+            Case ('Nx')
+                Read(buffer, *, iostat=ios) imax
+            Case ('Ny')
+                Read(buffer, *, iostat=ios) jmax
+            Case ('tmax')
+                Read(buffer, *, iostat=ios) time_max
+            Case ('CFL')
+                Read(buffer, *, iostat=ios) cfl
+            Case ('gamma')
+                Read(buffer, *, iostat=ios) gammagp
+            Case ('output_modulo')
+                Read(buffer, *, iostat=ios) output_modulo
+            Case ('case')
+                Read(buffer, *, iostat=ios) case_number
+            Case ('')
+                ! Do nothing if it is an empty line
+            Case Default
+                Write(STDOUT,*) "Invalid label", label, " at line", line_number, "(skipping)"
+            End Select
+        End If
+    End Do
     Close(111)
     ! Allocate
     Allocate(x(0:imax), y(0:jmax), xm(imax), ym(jmax))
@@ -37,7 +80,7 @@ Program euler
     ! Initialise U
     Do i=1, imax
         Do j=1 , jmax
-            Uvect(:,i,j) = Uinit(2, xm(i), ym(j), gammagp)
+            Uvect(:,i,j) = Uinit(case_number, xm(i), ym(j), gammagp)
         End Do
     End Do
 
@@ -120,15 +163,15 @@ Program euler
             End Do
         End Do
 
-        If ( Modulo(nb_iterations, noutput) == 0) Then
+        If ( Modulo(nb_iterations, output_modulo) == 0) Then
             Write(STDOUT, *) time, time_max
             Do i=1, imax
                 Do j=1 , jmax
-                    Uvect_e(:,i,j) = Uexact(2, xm(i), ym(j), time, gammagp)
+                    Uvect_e(:,i,j) = Uexact(case_number, xm(i), ym(j), time, gammagp)
                 End Do
             End Do
-            Call output(Uvect, gammagp, x, y, nb_iterations / noutput + 1, 'sol')
-            Call output(Uvect_e, gammagp, x, y, nb_iterations / noutput + 1, 'exact')
+            Call output(Uvect, gammagp, x, y, nb_iterations / output_modulo + 1, 'sol')
+            Call output(Uvect_e, gammagp, x, y, nb_iterations / output_modulo + 1, 'exact')
         End If
         nb_iterations = nb_iterations + 1
     End Do
@@ -182,7 +225,7 @@ Contains
         Real(PR), Dimension(4) :: error
         ! --- Locals
         Real(PR), Dimension(4) :: maximum, exact_value
-        
+
         maximum = Huge( U(:,1,1) )
         Do i=1, imax
             Do j=1 , jmax

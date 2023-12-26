@@ -6,13 +6,12 @@ ymax 5.0
 Nx 100
 Ny 100
 
-tmax 1.0
+tmax 10.0
 CFL 1.0
 
 gamma 1.4
 
-
 output_modulo -1
 
-
+flux HLL
 case 2

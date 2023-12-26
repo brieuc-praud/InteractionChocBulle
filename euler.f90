@@ -11,6 +11,7 @@ Program euler
     ! Parameters
     Real(PR) xmin, xmax, ymin, ymax, time_max, cfl, gammagp
     Integer :: imax, jmax, output_modulo, case_number
+    Character(len=10) :: numflux_name
     ! Input related variables
     Character(len=100) :: buffer, label
     Integer :: pos
@@ -59,6 +60,8 @@ Program euler
                 Read(buffer, *, iostat=ios) output_modulo
             Case ('case')
                 Read(buffer, *, iostat=ios) case_number
+            Case ('flux')
+                Read(buffer, *, iostat=ios) numflux_name
             Case ('')
                 ! Do nothing if it is an empty line
             Case Default
@@ -99,49 +102,52 @@ Program euler
 
         Do j=1, jmax
             Do i=1, imax-1
-                fluxF(:,i,j) = Rusanov('x', Uvect(:,i,j), Uvect(:,i+1,j), gammagp)
-                !fluxF(:,i,j) = HLL('x', Uvect(:,i,j), Uvect(:,i+1,j), gammagp)
+                Select Case (TRIM(ADJUSTL(numflux_name)))
+                Case ('Rusanov')
+                    fluxF(:,i,j) = Rusanov('x', Uvect(:,i,j), Uvect(:,i+1,j), gammagp)
+                Case Default ! Case ('HLL')
+                    fluxF(:,i,j) = HLL('x', Uvect(:,i,j), Uvect(:,i+1,j), gammagp)
+                End Select
             End Do
-            ! DIRICHLET
-            !F(0,j) = -2._PR*D(xmin, ym(j)) * (T(1, j) - Touest(tn, ym(j))) / deltax
-            !F(imax,j) = 2._PR*D(xmax, ym(j)) * (T(imax,j) - Test(tn,ym(j))) / deltax
-            ! NEUMANN
-            If (.True.) Then
+            ! Boundary
+            Select Case (case_number)
+            Case (2) ! Periodic
                 ! Periodic
-                fluxF(:,0,j) = Rusanov('x', Uvect(:,imax,j), Uvect(:,1,j), gammagp)
+                Select Case (TRIM(ADJUSTL(numflux_name)))
+                Case ('Rusanov')
+                    fluxF(:,0,j) = Rusanov('x', Uvect(:,imax,j), Uvect(:,1,j), gammagp)
+                Case Default ! Case ('HLL')
+                    fluxF(:,0,j) = HLL('x', Uvect(:,imax,j), Uvect(:,1,j), gammagp)
+                End Select
                 fluxF(:,imax,j) = fluxF(:,0,j)
-            Else If (.False.) Then
-                ! Absorbing
+            Case Default ! Absorbing
                 fluxF(:,0,j) = fluxFuncF( Uvect(:,1,j), gammagp )
                 fluxF(:,imax,j) = fluxFuncF( Uvect(:,imax,j), gammagp )
-            Else
-                ! Homogeneous Neumann
-                fluxF(:,0,j) = 0._PR
-                fluxF(:,imax,j) = 0._PR
-            End If
+            End Select
         End Do
         Do i=1, imax
             Do j=1, jmax-1
-                fluxG(:,i,j) = Rusanov('y', Uvect(:,i,j), Uvect(:,i,j+1), gammagp)
-                !fluxG(:,i,j) = HLL('y', Uvect(:,i,j), Uvect(:,i,j+1), gammagp)
+                Select Case (TRIM(ADJUSTL(numflux_name)))
+                Case ('Rusanov')
+                    fluxG(:,i,j) = Rusanov('y', Uvect(:,i,j), Uvect(:,i,j+1), gammagp)
+                Case Default ! Case ('HLL')
+                    fluxG(:,i,j) = HLL('y', Uvect(:,i,j), Uvect(:,i,j+1), gammagp)
+                End Select
             End Do
-            ! DIRICHLET
-            !G(i,0) = -2._PR*D(xm(i), ymin) * ( T(i,1) - Tnord(tn,xm(i)) ) / deltay
-            !G(i,jmax) = 2._PR*D(xm(i), ymax) * (T(i,jmax) - Tsud(tn,xm(i))) / deltay
-            ! NEUMANN
-            If (.True.) Then
-                ! Periodic
-                fluxG(:,i,0) = Rusanov('y', Uvect(:,i,jmax), Uvect(:,i,1), gammagp)
+            ! Boundary
+            Select Case (case_number)
+            Case (2) ! Periodic
+                Select Case (TRIM(ADJUSTL(numflux_name)))
+                Case ('Rusanov')
+                    fluxG(:,i,0) = Rusanov('y', Uvect(:,i,jmax), Uvect(:,i,1), gammagp)
+                Case Default ! Case ('HLL')
+                    fluxG(:,i,0) = HLL('y', Uvect(:,i,jmax), Uvect(:,i,1), gammagp)
+                End Select
                 fluxG(:,i,jmax) = fluxG(:,i,0)
-            Else If (.False.) Then
-                ! Absorbing
+            Case Default ! Absorbing
                 fluxG(:,i,0) = fluxFuncG( Uvect(:,i,0), gammagp )
                 fluxG(:,i,jmax) = fluxFuncG( Uvect(:,i,jmax), gammagp )
-            Else
-                ! Homogeneous Neumann
-                fluxG(:,i,0) = 0._PR
-                fluxG(:,i,jmax) = 0._PR
-            End If
+            End Select
         End Do
 
         Do i=1, imax

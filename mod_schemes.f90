@@ -90,45 +90,31 @@ Contains
 
         Select Case (axis)
         Case ('y')
-            l1L = ABS(velocity_vL - aL)
-            l3L = ABS(velocity_vL + aL)
-            l1R = ABS(velocity_vR - aR)
-            l3R = ABS(velocity_vR + aR)
+            l1L = velocity_vL - aL
+            l3L = velocity_vL + aL
+            l1R = velocity_vR - aR
+            l3R = velocity_vR + aR
         Case Default ! 'x'
-            l1L = ABS(velocity_uL - aL)
-            l3L = ABS(velocity_uL + aL)
-            l1R = ABS(velocity_uR - aR)
-            l3R = ABS(velocity_uR + aR)
+            l1L = velocity_uL - aL
+            l3L = velocity_uL + aL
+            l1R = velocity_uR - aR
+            l3R = velocity_uR + aR
         End Select
 
-        b_minusL = MIN(l1L, l3L)
-        b_minusR = MIN(l1R, l3R)
-        b_minus = MIN( b_minusL, b_minusR )
-        b_plusL = MAX(l1L, l3L)
-        b_plusR = MAX(l1R, l3R)
-        b_plus = MAX( b_plusL, b_plusR )
+        b_minusL = MIN( l1L, l3L )
+        b_minusR = MIN( l1R, l3R )
+        b_minus = MIN( b_minusL, b_minusR, 0._PR )
+        b_plusL = MAX( l1L, l3L )
+        b_plusR = MAX( l1R, l3R )
+        b_plus = MAX( b_plusL, b_plusR, 0._PR )
 
         Select Case (axis)
         Case ('y')
-            If ( b_minus > 0._PR ) Then
-                HLL = fluxFuncG(UL, gammagp)
-            Else If ( b_plus < 0._PR ) Then
-                HLL = fluxFuncG(UR, gammagp)
-            Else
-                HLL = b_plus * fluxFuncG(UL, gammagp) - b_minus * fluxFuncG(UR, gammagp)
-                HLL = ( HLL   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
-            End If
-            HLL = fluxFuncG(UL, gammagp)
+            HLL = b_plus * fluxFuncG(UL, gammagp) - b_minus * fluxFuncG(UR, gammagp)
+            HLL = ( HLL   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
         Case Default ! 'x'
-            If ( b_minus > 0._PR ) Then
-                HLL = fluxFuncF(UL, gammagp)
-            Else If ( b_plus < 0._PR ) Then
-                HLL = fluxFuncF(UR, gammagp)
-            Else
-                HLL = b_plus * fluxFuncF(UL, gammagp) - b_minus * fluxFuncF(UR, gammagp)
-                HLL = ( HLL   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
-            End If
-            HLL = fluxFuncF(UL, gammagp)
+            HLL = b_plus * fluxFuncF(UL, gammagp) - b_minus * fluxFuncF(UR, gammagp)
+            HLL = ( HLL   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
         End Select
     End Function HLL
 

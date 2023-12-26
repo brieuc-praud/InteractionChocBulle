@@ -19,3 +19,9 @@ clean:
 
 exe: $(EXE)
 	./$(EXE)
+
+plot_error: error.gp error.dat
+	gnuplot -p $<
+	
+error.dat: $(EXE) convergence.sh
+	./convergence.sh $<

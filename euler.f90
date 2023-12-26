@@ -79,7 +79,7 @@ Program euler
     ym = (/ Real(PR) :: (ymin + .5_PR*deltay + j*deltay, j=0, jmax-1) /)
     ! Initialise U
     Do i=1, imax
-        Do j=1 , jmax
+        Do j=1, jmax
             Uvect(:,i,j) = Uinit(case_number, xm(i), ym(j), gammagp)
         End Do
     End Do
@@ -144,17 +144,6 @@ Program euler
             End If
         End Do
 
-        !Do i=1, imax
-        !    Do j=1, jmax
-        !            Write(*,*) i, j, "F", -1._PR/deltax * (fluxF(:,i,j) - fluxF(:,i-1,j))
-        !            Write(*,*) i, j, "F1", fluxF(:,i,j)
-        !            Write(*,*) i, j, "F2", fluxF(:,i-1,j)
-        !            Write(*,*) Uvect(:,i,j)
-        !            Write(*,*) Uvect(:,i+1,j)
-        !            Write(*,*) i, j, "G", -1._PR/deltay * (fluxG(:,i,j) - fluxG(:,i,j-1))
-        !    End Do
-        !End Do
-        !Call Exit()
         Do i=1, imax
             Do j=1, jmax
                 Uvect(:,i,j) = Uvect(:,i,j) &
@@ -163,10 +152,10 @@ Program euler
             End Do
         End Do
 
-        If ( Modulo(nb_iterations, output_modulo) == 0) Then
+        If ( output_modulo > 0 .AND. Modulo(nb_iterations, output_modulo) == 0 ) Then
             Write(STDOUT, *) time, time_max
             Do i=1, imax
-                Do j=1 , jmax
+                Do j=1, jmax
                     Uvect_e(:,i,j) = Uexact(case_number, xm(i), ym(j), time, gammagp)
                 End Do
             End Do
@@ -176,7 +165,7 @@ Program euler
         nb_iterations = nb_iterations + 1
     End Do
 
-    Write(STDOUT, *) "Error:", error(2, Uvect, gammagp)
+    Write(STDOUT, *) "Error:", error('L1', case_number, Uvect, time_max, gammagp)
 
     Deallocate(x, y, xm, ym)
     Deallocate(Uvect, Uvect_e, fluxF, fluxG)
@@ -217,22 +206,42 @@ Contains
         dt = cfl * 0.5_PR * MIN(dx/bx_max, dy/by_max)
     End Subroutine compute_CFL
 
-    Function error(case_number, U, gammagp)
+    Function error(norm, case_number, U, time, gammagp)
         ! --- InOut
         Real(PR), Dimension(4,imax,jmax), Intent(In) :: U
-        Real(PR), Intent(In) :: gammagp
+        Real(PR), Intent(In) :: gammagp, time
         Integer, Intent(In) :: case_number
+        Character(len=*), Intent(In) :: norm
         Real(PR), Dimension(4) :: error
         ! --- Locals
-        Real(PR), Dimension(4) :: maximum, exact_value
+        Real(PR), Dimension(4) :: exact_value
 
-        maximum = Huge( U(:,1,1) )
-        Do i=1, imax
-            Do j=1 , jmax
-                exact_value = Uexact(case_number, xm(i), ym(j), time_max, gammagp)
-                error = MAX( error, ABS( Uvect(:,i,j) - exact_value ) )
+        error = 0._PR
+        Select Case (norm)
+        Case ('L1') ! L1 norm
+            Do i=1, imax
+                Do j=1 , jmax
+                    exact_value = Uexact(case_number, xm(i), ym(j), time, gammagp)
+                    error = error + ABS( U(:,i,j) - exact_value )
+                End Do
             End Do
-        End Do
+            error = error / ( imax * jmax )
+        Case ('L2') ! L2 norm
+            Do i=1, imax
+                Do j=1 , jmax
+                    exact_value = Uexact(case_number, xm(i), ym(j), time, gammagp)
+                    error = error + ( U(:,i,j) - exact_value )**2
+                End Do
+            End Do
+            error = SQRT( error / ( imax * jmax ) )
+        Case Default ! L_infinity norm
+            Do i=1, imax
+                Do j=1 , jmax
+                    exact_value = Uexact(case_number, xm(i), ym(j), time, gammagp)
+                    error = MAX( error, ABS( U(:,i,j) - exact_value ) )
+                End Do
+            End Do
+        End Select
     End Function error
 
 End Program euler

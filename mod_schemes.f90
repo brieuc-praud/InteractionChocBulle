@@ -4,75 +4,178 @@ Module mod_schemes
    Implicit None
 
 Contains
-   Function Rusanov(Ui, Uip1, gamma, F)
-      Real(PR), Dimension(4), Intent(In) :: Ui, Uip1
-      Real(PR), Intent(In) :: gamma
-      Interface
-         Function F(Uvect, gamma)
-            Import PR
-            Real(PR), Dimension(4), Intent(In) :: Uvect
-            Real(PR), Intent(In) :: gamma
-            Real(PR), Dimension(4) :: F
-         End Function F
-      End Interface
-      Real(PR), Dimension(4) :: Rusanov
-      ! --- Locals
-      Real(PR) :: r, ru, rv, e, u, v, p, q, a, b
+    Function Rusanov(axis, UL, UR, gammagp)
+        ! --- InOut
+        Real(PR), Dimension(4), Intent(In) :: UL, UR
+        Real(PR), Intent(In) :: gammagp
+        Character, Intent(In) :: axis ! x,  y
+        Real(PR), Dimension(4) :: Rusanov
+        ! --- Locals
+        Real(PR) :: rL, velocity_uL, velocity_vL, eL, pressureL, qL, aL, bL, l1L, l3L
+        Real(PR) :: rR, velocity_uR, velocity_vR, eR, pressureR, qR, aR, bR, l1R, l3R
+        Real(PR) :: b
 
-      r = Ui(1)
-      ru = Ui(2)
-      rv = Ui(3)
-      e = Ui(4)
-      u = ru/r
-      v = rv/r
-      q = 0.5_PR * ( u**2 + v**2 )
-      p = (gamma - 1._PR)*(e - r*q)
-      a = SQRT(gamma*p/r)
+        ! == Left
+        rL = UL(1)
+        velocity_uL = UL(2)/rL
+        velocity_vL = UL(3)/rL
+        eL = UL(4)
+        qL = .5_PR * ( velocity_uL**2 + velocity_vL**2 )
+        pressureL = (gammagp - 1._PR)*(eL - rL*qL)
+        aL = SQRT(gammagp * pressureL / rL)
 
-      b = MAX(ABS(u-a), ABS(u), ABS(u+a))
+        ! == Right
+        rR = UR(1)
+        velocity_uR = UR(2)/rR
+        velocity_vR = UR(3)/rR
+        eR = UR(4)
+        qR = .5_PR * ( velocity_uR**2 + velocity_vR**2 )
+        pressureR = (gammagp - 1._PR)*(eR - rR*qR)
+        aR = SQRT(gammagp * pressureR / rR)
 
-      Rusanov = 0.5_PR * ( F(Ui, gamma) + F(Uip1, gamma) - b*(Uip1 - Ui) )
-   End Function Rusanov
+        Select Case (axis)
+        Case ('y')
+            l1L = ABS(velocity_vL - aL)
+            l3L = ABS(velocity_vL + aL)
+            l1R = ABS(velocity_vR - aR)
+            l3R = ABS(velocity_vR + aR)
+        Case Default ! 'x'
+            l1L = ABS(velocity_uL - aL)
+            l3L = ABS(velocity_uL + aL)
+            l1R = ABS(velocity_uR - aR)
+            l3R = ABS(velocity_uR + aR)
+        End Select
 
-   Function HLL(Ui, Uip1, gamma, F)
-      Real(PR), Dimension(4), Intent(In) :: Ui, Uip1
-      Real(PR), Intent(In) :: gamma
-      Interface
-         Function F(Uvect, gamma)
-            Import PR
-            Real(PR), Dimension(4), Intent(In) :: Uvect
-            Real(PR), Intent(In) :: gamma
-            Real(PR), Dimension(4) :: F
-         End Function F
-      End Interface
-      Real(PR), Dimension(4) :: HLL
-      ! --- Locals
-      Real(PR) :: r, ru, rv, e, u, v, p, q, a
-      Real(PR) :: l1, l2, l3, bm, bp
+        bL = MAX(l1L, l3L)
+        bR = MAX(l1R, l3R)
+        b = MAX( bL, bR )
 
-      r = Ui(1)
-      ru = Ui(2)
-      rv = Ui(3)
-      e = Ui(4)
-      u = ru/r
-      v = rv/r
-      q = 0.5_PR * ( u**2 + v**2 )
-      p = (gamma - 1._PR)*(e - r*q)
-      a = SQRT(gamma*p/r)
+        Select Case (axis)
+        Case ('y')
+            Rusanov = fluxFuncG(UL, gammagp) + fluxFuncG(UR, gammagp)
+        Case Default ! 'x'
+            Rusanov = fluxFuncF(UL, gammagp) + fluxFuncF(UR, gammagp)
+        End Select
+        Rusanov = 0.5_PR * ( Rusanov - b*(UR - UL) )
+    End Function Rusanov
 
-      l1 = ABS(u-a)
-      l2 = ABS(u)
-      l3 = ABS(u+a)
-      bm = MIN( l1, l2, l3 )
-      bp = MAX( l1, l2, l3 )
+    Function HLL(axis, UL, UR, gammagp)
+        ! --- InOut
+        Real(PR), Dimension(4), Intent(In) :: UL, UR
+        Real(PR), Intent(In) :: gammagp
+        Character, Intent(In) :: axis ! x,  y
+        Real(PR), Dimension(4) :: HLL
+        ! --- Locals
+        Real(PR) :: rL, velocity_uL, velocity_vL, eL, pressureL, qL, aL, b_minusL, b_plusL, l1L, l3L
+        Real(PR) :: rR, velocity_uR, velocity_vR, eR, pressureR, qR, aR, b_minusR, b_plusR, l1R, l3R
+        Real(PR) :: b_minus, b_plus
 
-      If ( bm > 0 ) Then
-         HLL = F(Ui, gamma)
-      Else If ( bp < 0 ) Then
-         HLL = F(Uip1, gamma)
-      Else
-         HLL = ( bp * F(Ui, gamma) - bm * F(Uip1, gamma)    +    bp * bm * (Uip1 - Ui) )/( bp - bm )
-      End If
-   End Function HLL
+        ! == Left
+        rL = UL(1)
+        velocity_uL = UL(2)/rL
+        velocity_vL = UL(3)/rL
+        eL = UL(4)
+        qL = .5_PR * ( velocity_uL**2 + velocity_vL**2 )
+        pressureL = (gammagp - 1._PR)*(eL - rL*qL)
+        aL = SQRT(gammagp * pressureL / rL)
+
+        ! == Right
+        rR = UR(1)
+        velocity_uR = UR(2)/rR
+        velocity_vR = UR(3)/rR
+        eR = UR(4)
+        qR = .5_PR * ( velocity_uR**2 + velocity_vR**2 )
+        pressureR = (gammagp - 1._PR)*(eR - rR*qR)
+        aR = SQRT(gammagp * pressureR / rR)
+
+        Select Case (axis)
+        Case ('y')
+            l1L = ABS(velocity_vL - aL)
+            l3L = ABS(velocity_vL + aL)
+            l1R = ABS(velocity_vR - aR)
+            l3R = ABS(velocity_vR + aR)
+        Case Default ! 'x'
+            l1L = ABS(velocity_uL - aL)
+            l3L = ABS(velocity_uL + aL)
+            l1R = ABS(velocity_uR - aR)
+            l3R = ABS(velocity_uR + aR)
+        End Select
+
+        b_minusL = MIN(l1L, l3L)
+        b_minusR = MIN(l1R, l3R)
+        b_minus = MIN( b_minusL, b_minusR )
+        b_plusL = MAX(l1L, l3L)
+        b_plusR = MAX(l1R, l3R)
+        b_plus = MAX( b_plusL, b_plusR )
+
+        Select Case (axis)
+        Case ('y')
+            If ( b_minus > 0._PR ) Then
+                HLL = fluxFuncG(UL, gammagp)
+            Else If ( b_plus < 0._PR ) Then
+                HLL = fluxFuncG(UR, gammagp)
+            Else
+                HLL = b_plus * fluxFuncG(UL, gammagp) - b_minus * fluxFuncG(UR, gammagp)
+                HLL = ( HLL   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
+            End If
+            HLL = fluxFuncG(UL, gammagp)
+        Case Default ! 'x'
+            If ( b_minus > 0._PR ) Then
+                HLL = fluxFuncF(UL, gammagp)
+            Else If ( b_plus < 0._PR ) Then
+                HLL = fluxFuncF(UR, gammagp)
+            Else
+                HLL = b_plus * fluxFuncF(UL, gammagp) - b_minus * fluxFuncF(UR, gammagp)
+                HLL = ( HLL   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
+            End If
+            HLL = fluxFuncF(UL, gammagp)
+        End Select
+    End Function HLL
+
+
+    ! Fluxes functions
+    Function fluxFuncF(Uvect, gammagp)
+        Real(PR), Dimension(4), Intent(In) :: Uvect
+        Real(PR), Intent(In) :: gammagp
+        Real(PR), Dimension(4) :: fluxFuncF
+        ! --- Locals
+        Real(PR) :: r, ru, rv, e, u, v, p, q
+
+        r = Uvect(1)
+        ru = Uvect(2)
+        rv = Uvect(3)
+        e = Uvect(4)
+        u = ru/r
+        v = rv/r
+        q = 0.5_PR * ( u**2 + v**2 )
+        p = (gammagp - 1._PR)*(e - r*q)
+
+        fluxFuncF(1) = ru
+        fluxFuncF(2) = ru*u + p
+        fluxFuncF(3) = rv*u
+        fluxFuncF(4) = (e + p)*u
+    End Function fluxFuncF
+
+    Function fluxFuncG(Uvect, gammagp)
+        Real(PR), Dimension(4), Intent(In) :: Uvect
+        Real(PR), Intent(In) :: gammagp
+        Real(PR), Dimension(4) :: fluxFuncG
+        ! --- Locals
+        Real(PR) :: r, ru, rv, e, u, v, p, q
+
+        r = Uvect(1)
+        ru = Uvect(2)
+        rv = Uvect(3)
+        e = Uvect(4)
+        u = ru/r
+        v = rv/r
+        q = 0.5_PR * ( u**2 + v**2 )
+        p = (gammagp - 1._PR)*(e - r*q)
+
+        fluxFuncG(1) = rv
+        fluxFuncG(2) = ru*v
+        fluxFuncG(3) = rv*v + p
+        fluxFuncG(4) = (e + p)*v
+    End Function fluxFuncG
 
 End Module mod_schemes

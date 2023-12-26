@@ -1,2 +1,2 @@
--0.1 1.6 -0.5 0.5 1.0 0.5 80 40 1.4
-# xmin, xmax, ymin, ymax, tmax, cfl, imax, jmax, gamma
+-5.0 5.0 -5.0 5.0 3.0 1.0 100 100 1.4 10
+# xmin, xmax, ymin, ymax, tmax, cfl, imax, jmax, gamma, output_modulo

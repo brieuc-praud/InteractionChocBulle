@@ -1,6 +1,6 @@
 EXE = euler
 F90 = gfortran
-#OPT = -O0 -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
+#OPT = -Og -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
 OPT = -O2
 OBJ = mod_parameters.o mod_functions.o mod_schemes.o mod_output.o mod_test.o $(EXE).o
 

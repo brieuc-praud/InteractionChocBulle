@@ -107,11 +107,17 @@ Contains
         b_plusL = velocityL + aL
         b_minusR = velocityR - aR
         b_plusR = velocityR + aR
-        b_minus = MIN( b_minusL, b_minusR, 0._PR )
-        b_plus = MAX( b_plusL, b_plusR, 0._PR )
-        
-        HLL = b_plus * fluxL - b_minus * fluxR
-        HLL = ( HLL   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
+        b_minus = MIN( b_minusL, b_minusR )
+        b_plus = MAX( b_plusL, b_plusR )
+
+        If ( b_minus >= 0._PR ) Then
+            HLL = fluxL
+        Else If ( b_plus >= 0._PR ) Then
+            HLL = ( b_plus * fluxL - b_minus * fluxR &
+                &   +   b_plus * b_minus * (UR - UL) ) / ( b_plus - b_minus )
+        Else
+            HLL = fluxR
+        End If
     End Function HLL
 
     Function HLLC(axis, UL, UR, gammagp)
@@ -168,7 +174,7 @@ Contains
         b_plusR = velocityR + aR
         b_minus = MIN( b_minusL, b_minusR )
         b_plus = MAX( b_plusL, b_plusR )
-        
+
         b_star = pressureR - pressureL &
             & + rL*velocityL*(b_minus - velocityL) &
             & - rR*velocityR*(b_plus - velocityR)

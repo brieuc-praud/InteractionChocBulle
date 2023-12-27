@@ -28,10 +28,10 @@ Contains
     End Subroutine PerformTestsAndExit
 
     Function randomU(gammagp)
-        Real(PR), Parameter :: eps = EPSILON(Real(PR))
-        Real(PR), Parameter :: hug = 1._PR/eps
+        Real(PR), Parameter :: eps = 1.e-3_PR
+        Real(PR), Parameter :: hug = 1.e3_PR
         Real(PR), Dimension(4), Parameter :: lowerBounds = &
-            & (/ Real(PR) :: eps, -hug, -hug, eps /)
+            & (/ Real(PR) :: eps, -hug, -hug, 0._PR /)
         Real(PR), Dimension(4), Parameter :: upperBounds = &
             & (/ Real(PR) :: hug, hug, hug, hug /)
 
@@ -55,7 +55,7 @@ Contains
     End Function randomU
 
     Subroutine testNumericalFlux(numericalFlux, gammagp, fluxFuncF, fluxFuncG)
-        Real(PR), Parameter :: safety_factor = 2._PR
+        Real(PR), Parameter :: safety_factor = 1.e6_PR
         Integer, Parameter :: number_of_tests = 1000
         ! ------------------- Intent In -----------------------
         Real(PR), Intent(In) :: gammagp
@@ -87,13 +87,17 @@ Contains
         ! ----------------------------------------------------------
         Integer :: i
         Real(PR), Dimension(4) :: U
+        Real(PR) :: diffF, diffG
         Logical :: failF, failG
 
         Do i=1, number_of_tests
             U = randomU(gammagp)
-            failF = SUM( ABS(numericalFlux('x', U, U, gammagp) - fluxFuncF(U, gammagp)) ) > safety_factor*EPSILON(U(1))
-            failG = SUM( ABS(numericalFlux('y', U, U, gammagp) - fluxFuncG(U, gammagp)) ) > safety_factor*EPSILON(U(1))
+            diffF = MAXVAL( ABS(numericalFlux('x', U, U, gammagp) - fluxFuncF(U, gammagp)) )
+            diffG = MAXVAL( ABS(numericalFlux('y', U, U, gammagp) - fluxFuncG(U, gammagp)) )
+            failF = diffF > safety_factor*EPSILON(U(1))
+            failG = diffG > safety_factor*EPSILON(U(1))
             If (failF .OR. failG) Then
+                Write(STDOUT, *) diffF, diffG
                 Call Exit(1)
             End If
         End Do

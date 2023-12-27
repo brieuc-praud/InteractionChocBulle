@@ -14,9 +14,10 @@ $(EXE): $(OBJ)
 	$(F90) $(OPT) -c $<
 
 clean:
-	rm *.o *.mod $(EXE) *.vtk sortie.dat
+	rm -f *.o *.mod $(EXE) *.vtk sortie.dat
 
 exe: $(EXE)
+	rm -f *.vtk
 	./$(EXE)
 
 plot_error: error.gp error.dat

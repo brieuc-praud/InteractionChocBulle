@@ -13,5 +13,5 @@ gamma 1.4
 
 output_modulo -1
 
-flux HLL
+flux HLLC
 case 2

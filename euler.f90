@@ -105,6 +105,8 @@ Program euler
                 Select Case (TRIM(ADJUSTL(numflux_name)))
                 Case ('Rusanov')
                     fluxF(:,i,j) = Rusanov('x', Uvect(:,i,j), Uvect(:,i+1,j), gammagp)
+                Case ('HLLC')
+                    fluxF(:,i,j) = HLLC('x', Uvect(:,i,j), Uvect(:,i+1,j), gammagp)
                 Case Default ! Case ('HLL')
                     fluxF(:,i,j) = HLL('x', Uvect(:,i,j), Uvect(:,i+1,j), gammagp)
                 End Select
@@ -116,6 +118,8 @@ Program euler
                 Select Case (TRIM(ADJUSTL(numflux_name)))
                 Case ('Rusanov')
                     fluxF(:,0,j) = Rusanov('x', Uvect(:,imax,j), Uvect(:,1,j), gammagp)
+                Case ('HLLC')
+                    fluxF(:,0,j) = HLLC('x', Uvect(:,imax,j), Uvect(:,1,j), gammagp)
                 Case Default ! Case ('HLL')
                     fluxF(:,0,j) = HLL('x', Uvect(:,imax,j), Uvect(:,1,j), gammagp)
                 End Select
@@ -130,6 +134,8 @@ Program euler
                 Select Case (TRIM(ADJUSTL(numflux_name)))
                 Case ('Rusanov')
                     fluxG(:,i,j) = Rusanov('y', Uvect(:,i,j), Uvect(:,i,j+1), gammagp)
+                Case ('HLLC')
+                    fluxG(:,i,j) = HLLC('y', Uvect(:,i,j), Uvect(:,i,j+1), gammagp)
                 Case Default ! Case ('HLL')
                     fluxG(:,i,j) = HLL('y', Uvect(:,i,j), Uvect(:,i,j+1), gammagp)
                 End Select
@@ -140,6 +146,8 @@ Program euler
                 Select Case (TRIM(ADJUSTL(numflux_name)))
                 Case ('Rusanov')
                     fluxG(:,i,0) = Rusanov('y', Uvect(:,i,jmax), Uvect(:,i,1), gammagp)
+                Case ('HLLC')
+                    fluxG(:,i,0) = HLLC('y', Uvect(:,i,jmax), Uvect(:,i,1), gammagp)
                 Case Default ! Case ('HLL')
                     fluxG(:,i,0) = HLL('y', Uvect(:,i,jmax), Uvect(:,i,1), gammagp)
                 End Select
@@ -171,7 +179,7 @@ Program euler
         nb_iterations = nb_iterations + 1
     End Do
 
-    Write(STDOUT, *) "Error:", error('L1', case_number, Uvect, time_max, gammagp)
+    Write(STDOUT, *) "Error:", error('Linfty', case_number, Uvect, time_max, gammagp)
 
     Deallocate(x, y, xm, ym)
     Deallocate(Uvect, Uvect_e, fluxF, fluxG)

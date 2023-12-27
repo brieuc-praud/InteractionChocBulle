@@ -10,14 +10,19 @@ Contains
         Real(PR), Intent(In) :: gammagp
         ! ----------------------------------------------------------
         ! === Check fluxes consistency ===
-        Write(*,*) '=== FLUXES CONSISTENCY ==='
-        Write(*,*) "-- Rusanov"
-        Call testNumericalFlux(Rusanov, gammagp, fluxFuncF, fluxFuncG)
-        Write(*,*) " -> SUCCESS" ! The program exits if a test fails
+        Write(STDOUT,*) '=== FLUXES CONSISTENCY ==='
 
-        Write(*,*) "-- HLL"
+        Write(STDOUT,*) "-- Rusanov"
+        Call testNumericalFlux(Rusanov, gammagp, fluxFuncF, fluxFuncG)
+        Write(STDOUT,*) " -> SUCCESS" ! The program exits if a test fails
+
+        Write(STDOUT,*) "-- HLL"
         Call testNumericalFlux(HLL, gammagp, fluxFuncF, fluxFuncG)
-        Write(*,*) " -> SUCCESS"
+        Write(STDOUT,*) " -> SUCCESS"
+
+        Write(STDOUT,*) "-- HLLC"
+        Call testNumericalFlux(HLLC, gammagp, fluxFuncF, fluxFuncG)
+        Write(STDOUT,*) " -> SUCCESS"
 
         Call Exit()
     End Subroutine PerformTestsAndExit

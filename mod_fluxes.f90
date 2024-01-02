@@ -1,9 +1,39 @@
-Module mod_schemes
+Module mod_fluxes
 
-   Use mod_parameters
-   Implicit None
+    Use mod_parameters
+    Use mod_limiters
+    Implicit None
 
 Contains
+
+    ! ===== Generical flux interface =====
+    Function numericalFlux(numflux_name, axis, space_scheme_specs, ULL, UL, UR, URR, gammagp)
+        ! --- InOut
+        Character(len=*), Intent(In) :: numflux_name
+        Character, Intent(In) :: axis ! x,  y
+        Type(space_scheme), Intent(In) :: space_scheme_specs
+        Real(PR), Dimension(4), Intent(In) :: ULL, UL, UR, URR
+        Real(PR), Intent(In) :: gammagp
+        Real(PR), Dimension(4) :: numericalFlux
+        ! --- Locals
+        Real(PR), Dimension(4) :: ULi, URi
+
+        Call reconstructAtInterface(axis, ULi, URi, space_scheme_specs, ULL, UL, UR, URR)
+
+        Select Case (TRIM(ADJUSTL(numflux_name)))
+        Case ('Rusanov')
+            numericalFlux = Rusanov(axis, ULi, URi, gammagp)
+        Case ('HLL')
+            numericalFlux = HLL(axis, ULi, URi, gammagp)
+        Case ('HLLC')
+            numericalFlux = HLLC(axis, ULi, URi, gammagp)
+        Case Default
+            Write(STDERR,*) "Unknown flux name ", TRIM(ADJUSTL(numflux_name))
+            Call Exit(1)
+        End Select
+    End Function numericalFlux
+
+    ! ===== Numerical fluxes implementations =====
     Function Rusanov(axis, UL, UR, gammagp)
         ! --- InOut
         Real(PR), Dimension(4), Intent(In) :: UL, UR
@@ -34,28 +64,26 @@ Contains
         aR = SQRT(gammagp * pressureR / rR)
 
         Select Case (axis)
+        Case ('x')
+            l1L = ABS(velocity_uL - aL)
+            l3L = ABS(velocity_uL + aL)
+            l1R = ABS(velocity_uR - aR)
+            l3R = ABS(velocity_uR + aR)
         Case ('y')
             l1L = ABS(velocity_vL - aL)
             l3L = ABS(velocity_vL + aL)
             l1R = ABS(velocity_vR - aR)
             l3R = ABS(velocity_vR + aR)
-        Case Default ! 'x'
-            l1L = ABS(velocity_uL - aL)
-            l3L = ABS(velocity_uL + aL)
-            l1R = ABS(velocity_uR - aR)
-            l3R = ABS(velocity_uR + aR)
+        Case Default
+            Write(STDERR, *) "Unknown axis ", axis
+            Call Exit(1)
         End Select
 
-        bL = MAX(l1L, l3L)
-        bR = MAX(l1R, l3R)
+        bL = MAX( l1L, l3L )
+        bR = MAX( l1R, l3R )
         b = MAX( bL, bR )
 
-        Select Case (axis)
-        Case ('y')
-            Rusanov = fluxFuncG(UL, gammagp) + fluxFuncG(UR, gammagp)
-        Case Default ! 'x'
-            Rusanov = fluxFuncF(UL, gammagp) + fluxFuncF(UR, gammagp)
-        End Select
+        Rusanov = fluxFunc(axis, UL, gammagp) + fluxFunc(axis, UR, gammagp)
         Rusanov = 0.5_PR * ( Rusanov - b*(UR - UL) )
     End Function Rusanov
 
@@ -91,17 +119,19 @@ Contains
         aR = SQRT(gammagp * pressureR / rR)
 
         Select Case (axis)
+        Case ('x')
+            velocityL = velocity_uL
+            velocityR = velocity_uR
         Case ('y')
             velocityL = velocity_vL
             velocityR = velocity_vR
-            fluxL = fluxFuncG(UL, gammagp)
-            fluxR = fluxFuncG(UR, gammagp)
-        Case Default ! 'x'
-            velocityL = velocity_uL
-            velocityR = velocity_uR
-            fluxL = fluxFuncF(UL, gammagp)
-            fluxR = fluxFuncF(UR, gammagp)
+        Case Default
+            Write(STDERR, *) "Unknown axis ", axis
+            Call Exit(1)
         End Select
+
+        fluxL = fluxFunc(axis, UL, gammagp)
+        fluxR = fluxFunc(axis, UR, gammagp)
 
         b_minusL = velocityL - aL
         b_plusL = velocityL + aL
@@ -152,21 +182,23 @@ Contains
         aR = SQRT(gammagp * pressureR / rR)
 
         Select Case (axis)
+        Case ('x')
+            velocityL = velocity_uL
+            velocityR = velocity_uR
+            TvelocityL = velocity_vL
+            TvelocityR = velocity_vR
         Case ('y')
             velocityL = velocity_vL
             velocityR = velocity_vR
             TvelocityL = velocity_uL
             TvelocityR = velocity_uR
-            fluxL = fluxFuncG(UL, gammagp)
-            fluxR = fluxFuncG(UR, gammagp)
-        Case Default ! 'x'
-            velocityL = velocity_uL
-            velocityR = velocity_uR
-            TvelocityL = velocity_vL
-            TvelocityR = velocity_vR
-            fluxL = fluxFuncF(UL, gammagp)
-            fluxR = fluxFuncF(UR, gammagp)
+        Case Default
+            Write(STDERR, *) "Unknown axis ", axis
+            Call Exit(1)
         End Select
+
+        fluxL = fluxFunc(axis, UL, gammagp)
+        fluxR = fluxFunc(axis, UR, gammagp)
 
         b_minusL = velocityL - aL
         b_plusL = velocityL + aL
@@ -184,12 +216,15 @@ Contains
         ! == * Left
         UL_star(1) = 1._PR
         Select Case (axis)
+        Case ('x')
+            UL_star(2) = b_star
+            UL_star(3) = TvelocityL
         Case ('y')
             UL_star(2) = TvelocityL
             UL_star(3) = b_star
-        Case Default ! 'x'
-            UL_star(2) = b_star
-            UL_star(3) = TvelocityL
+        Case Default
+            Write(STDERR, *) "Unknown axis ", axis
+            Call Exit(1)
         End Select
         UL_star(4) = eL/rL + ( b_star - velocityL ) &
             & * ( b_star + pressureL / ( rL*(b_minus - velocityL) ) )
@@ -198,12 +233,15 @@ Contains
         ! == * Right
         UR_star(1) = 1._PR
         Select Case (axis)
+        Case ('x')
+            UR_star(2) = b_star
+            UR_star(3) = TvelocityR
         Case ('y')
             UR_star(3) = b_star
             UR_star(2) = TvelocityR
-        Case Default ! 'x'
-            UR_star(2) = b_star
-            UR_star(3) = TvelocityR
+        Case Default
+            Write(STDERR, *) "Unknown axis ", axis
+            Call Exit(1)
         End Select
         UR_star(4) = eR/rR + ( b_star - velocityR ) &
             & * ( b_star + pressureR / ( rR*(b_plus - velocityR) ) )
@@ -226,11 +264,13 @@ Contains
     End Function HLLC
 
 
-    ! Fluxes functions
-    Function fluxFuncF(Uvect, gammagp)
+    ! ===== Fluxes functions =====
+    Function fluxFunc(axis, Uvect, gammagp)
+        ! --- InOut
+        Character, Intent(In) :: axis
         Real(PR), Dimension(4), Intent(In) :: Uvect
         Real(PR), Intent(In) :: gammagp
-        Real(PR), Dimension(4) :: fluxFuncF
+        Real(PR), Dimension(4) :: fluxFunc
         ! --- Locals
         Real(PR) :: r, ru, rv, e, u, v, p, q
 
@@ -243,32 +283,21 @@ Contains
         q = 0.5_PR * ( u**2 + v**2 )
         p = (gammagp - 1._PR)*(e - r*q)
 
-        fluxFuncF(1) = ru
-        fluxFuncF(2) = ru*u + p
-        fluxFuncF(3) = rv*u
-        fluxFuncF(4) = (e + p)*u
-    End Function fluxFuncF
+        Select Case (axis)
+        Case ('x')
+            fluxFunc(1) = ru
+            fluxFunc(2) = ru*u + p
+            fluxFunc(3) = rv*u
+            fluxFunc(4) = (e + p)*u
+        Case ('y')
+            fluxFunc(1) = rv
+            fluxFunc(2) = ru*v
+            fluxFunc(3) = rv*v + p
+            fluxFunc(4) = (e + p)*v
+        Case Default
+            Write(STDERR, *) "Unknown axis ", axis
+            Call Exit(1)
+        End Select
+    End Function fluxFunc
 
-    Function fluxFuncG(Uvect, gammagp)
-        Real(PR), Dimension(4), Intent(In) :: Uvect
-        Real(PR), Intent(In) :: gammagp
-        Real(PR), Dimension(4) :: fluxFuncG
-        ! --- Locals
-        Real(PR) :: r, ru, rv, e, u, v, p, q
-
-        r = Uvect(1)
-        ru = Uvect(2)
-        rv = Uvect(3)
-        e = Uvect(4)
-        u = ru/r
-        v = rv/r
-        q = 0.5_PR * ( u**2 + v**2 )
-        p = (gammagp - 1._PR)*(e - r*q)
-
-        fluxFuncG(1) = rv
-        fluxFuncG(2) = ru*v
-        fluxFuncG(3) = rv*v + p
-        fluxFuncG(4) = (e + p)*v
-    End Function fluxFuncG
-
-End Module mod_schemes
+End Module mod_fluxes

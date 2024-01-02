@@ -13,10 +13,10 @@ ERRFILE=error.dat
 EXE="$1"
 
 # Starting point for convergence analysis
-REFNx=100
-REFNy=100
-REFCFL=1.0
-PWRbasis=1.5
+REFNx=50
+REFNy=50
+REFCFL=0.25
+PWRbasis=1.1
 # Number of points for the convergence analysis
 NMAX=4
 
@@ -38,6 +38,10 @@ changeParameters()
 
 # Store the old parameters to restore them after the analysis
 cp $PARAMS $PARAMS.tmp
+function cleanup {
+    mv $PARAMS.tmp $PARAMS
+}
+trap cleanup EXIT # restore the config file when exiting
 # Create a new file (erase the content if it already exists)
 > $ERRFILE
 for i in $(seq 1 $NMAX)
@@ -59,6 +63,3 @@ do
     err=$(echo "$output" | tail -n 1 | cut -d':' -f 2 | xargs)
     echo "$dx $err" >> $ERRFILE
 done
-
-# Restore default parameters
-mv $PARAMS.tmp $PARAMS

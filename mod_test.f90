@@ -1,7 +1,7 @@
 Module mod_test
 
     Use mod_parameters
-    Use mod_schemes
+    Use mod_fluxes
     Implicit None
 
 Contains
@@ -13,15 +13,15 @@ Contains
         Write(STDOUT,*) '=== FLUXES CONSISTENCY ==='
 
         Write(STDOUT,*) "-- Rusanov"
-        Call testNumericalFlux(Rusanov, gammagp, fluxFuncF, fluxFuncG)
+        Call testNumericalFlux(Rusanov, gammagp, fluxFunc)
         Write(STDOUT,*) " -> SUCCESS" ! The program exits if a test fails
 
         Write(STDOUT,*) "-- HLL"
-        Call testNumericalFlux(HLL, gammagp, fluxFuncF, fluxFuncG)
+        Call testNumericalFlux(HLL, gammagp, fluxFunc)
         Write(STDOUT,*) " -> SUCCESS"
 
         Write(STDOUT,*) "-- HLLC"
-        Call testNumericalFlux(HLLC, gammagp, fluxFuncF, fluxFuncG)
+        Call testNumericalFlux(HLLC, gammagp, fluxFunc)
         Write(STDOUT,*) " -> SUCCESS"
 
         Call Exit()
@@ -54,7 +54,7 @@ Contains
         randomU(4) = e
     End Function randomU
 
-    Subroutine testNumericalFlux(numericalFlux, gammagp, fluxFuncF, fluxFuncG)
+    Subroutine testNumericalFlux(numericalFlux, gammagp, fluxFunc)
         Real(PR), Parameter :: safety_factor = 1.e6_PR
         Integer, Parameter :: number_of_tests = 1000
         ! ------------------- Intent In -----------------------
@@ -69,20 +69,13 @@ Contains
             End Function numericalFlux
         End Interface
         Interface
-            Function fluxFuncF(Uvect, gammagp)
+            Function fluxFunc(axis, Uvect, gammagp)
                 Import PR
+                Character, Intent(In) :: axis
                 Real(PR), Dimension(4), Intent(In) :: Uvect
                 Real(PR), Intent(In) :: gammagp
-                Real(PR), Dimension(4) :: fluxFuncF
-            End Function fluxFuncF
-        End Interface
-        Interface
-            Function fluxFuncG(Uvect, gammagp)
-                Import PR
-                Real(PR), Dimension(4), Intent(In) :: Uvect
-                Real(PR), Intent(In) :: gammagp
-                Real(PR), Dimension(4) :: fluxFuncG
-            End Function fluxFuncG
+                Real(PR), Dimension(4) :: fluxFunc
+            End Function fluxFunc
         End Interface
         ! ----------------------------------------------------------
         Integer :: i
@@ -92,8 +85,8 @@ Contains
 
         Do i=1, number_of_tests
             U = randomU(gammagp)
-            diffF = MAXVAL( ABS(numericalFlux('x', U, U, gammagp) - fluxFuncF(U, gammagp)) )
-            diffG = MAXVAL( ABS(numericalFlux('y', U, U, gammagp) - fluxFuncG(U, gammagp)) )
+            diffF = MAXVAL( ABS(numericalFlux('x', U, U, gammagp) - fluxFunc('x', U, gammagp)) )
+            diffG = MAXVAL( ABS(numericalFlux('y', U, U, gammagp) - fluxFunc('y', U, gammagp)) )
             failF = diffF > safety_factor*EPSILON(U(1))
             failG = diffG > safety_factor*EPSILON(U(1))
             If (failF .OR. failG) Then

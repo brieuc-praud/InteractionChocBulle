@@ -4,21 +4,20 @@ set key right bottom
 
 ERRFILE = "error.dat"
 
-#fit f(x) ERRFILE u (log($1)):(log($3)) via b
-
 set logscale xy
 set format x "%2.0t.10^{%L}"
 set format y "%2.0t.10^{%L}"
 
-
 set title "Error"
-plot ERRFILE u 1:2 w lp t "density"
+
+f(x)=a*x+b
+fit f(x) ERRFILE u (log($1)):(log($5)) via a,b
+plot exp(f(log(x))) lc rgb 'gray' dt 4 t sprintf("slope %.2f", a)
+
+replot ERRFILE u 1:2 w lp t "density"
 replot ERRFILE u 1:3 w lp t "velocity_x"
 replot ERRFILE u 1:4 w lp t "velocity_y"
 replot ERRFILE u 1:5 w lp t "energy"
-
-f(x)=1.1*GPVAL_DATA_Y_MAX/GPVAL_DATA_X_MIN * x
-replot f(x) t "slope 1"
 
 set xrange [0.9*GPVAL_X_MIN:1.1*GPVAL_X_MAX]
 replot

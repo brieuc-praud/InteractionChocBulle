@@ -7,11 +7,17 @@ Nx 100
 Ny 100
 
 tmax 10.0
-CFL 1.0
+CFL 0.25
 
 gamma 1.4
 
-output_modulo -1
+output_modulo 20
 
-flux HLLC
 case 2
+
+error_norm L1
+
+# space_scheme: order, slope finite difference scheme, limiter, generalised minmod parameter (all options should be specified even if not used)
+space_scheme 2,centered,vanLeer,1.
+time_scheme SSP-RK2
+flux HLL

@@ -2,7 +2,7 @@ EXE = euler
 F90 = gfortran
 #OPT = -Og -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
 OPT = -O2
-OBJ = mod_parameters.o mod_functions.o mod_limiters.o mod_fluxes.o mod_output.o mod_test.o $(EXE).o
+OBJ = mod_parameters.o mod_cases.o mod_limiters.o mod_fluxes.o mod_output.o mod_test.o $(EXE).o
 
 $(EXE): $(OBJ)
 	$(F90) $(OPT) -o $(EXE) $^

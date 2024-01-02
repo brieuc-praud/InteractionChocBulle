@@ -1,7 +1,7 @@
 Program euler
-    Use mod_functions
     Use mod_fluxes
     Use mod_output
+    Use mod_cases
     Use mod_test
 
     Implicit None
@@ -10,10 +10,12 @@ Program euler
 
     ! Parameters
     Real(PR) xmin, xmax, ymin, ymax, time_max, cfl, gammagp
-    Integer :: imax, jmax, output_modulo, case_number
+    Integer :: imax, jmax, output_modulo
     Character(len=10) :: numflux_name, norm_str, time_scheme_name
+    Character(len=20) :: case_name
     ! Input related variables
-    Character(len=100) :: buffer, label
+    Character(len=100) :: buffer
+    Character(len=20) :: label
     Integer :: pos
     Integer :: ios = 0
     Integer :: line_number = 0
@@ -40,14 +42,6 @@ Program euler
             buffer = buffer(pos+1:)
 
             Select Case (label)
-            Case ('xmin')
-                Read(buffer, *, iostat=ios) xmin
-            Case ('xmax')
-                Read(buffer, *, iostat=ios) xmax
-            Case ('ymin')
-                Read(buffer, *, iostat=ios) ymin
-            Case ('ymax')
-                Read(buffer, *, iostat=ios) ymax
             Case ('Nx')
                 Read(buffer, *, iostat=ios) imax
             Case ('Ny')
@@ -68,17 +62,14 @@ Program euler
                 Read(buffer, *, iostat=ios) space_scheme_specs%order, space_scheme_specs%slope_str, &
                     & space_scheme_specs%limiter_str, space_scheme_specs%generalised_minmod_parameter
             Case ('case')
-                Read(buffer, *, iostat=ios) case_number
+                Read(buffer, *, iostat=ios) case_name
             Case ('error_norm')
                 Read(buffer, *, iostat=ios) norm_str
-            Case ('')
-                ! Do nothing if it is an empty line
-            Case ('#')
-                ! Do nothing if it is a comment
+            Case ('','#')
+                ! Do nothing if it is an empty line or a comment
             Case Default
                 If ( label(1:1) /= '#' ) Then ! Special case where there is no space after '#'
-                    Write(STDOUT,*) "Invalid label", label, " at line", line_number, "(skipping)"
-                    Call Exit(1)
+                    Write(STDOUT,*) "Invalid label ", label, " at line ", line_number, " (skipping)"
                 End If
             End Select
         End If
@@ -97,6 +88,7 @@ Program euler
         Allocate(K3vect(4,imax,jmax), fluxK3F(4,0:imax, 0:jmax), fluxK3G(4,0:imax, 0:jmax))
     End Select
     ! Compute the grid
+    Call getGridDimensions(case_name, xmin, xmax, ymin, ymax)
     deltax = (xmax - xmin) / imax
     deltay = (ymax - ymin) / jmax
     x = (/ Real(PR) :: (xmin + i*deltax, i=0, imax) /)
@@ -106,7 +98,7 @@ Program euler
     ! Initialise U
     Do i=1, imax
         Do j=1, jmax
-            Uvect(:,i,j) = Uinit(case_number, xm(i), ym(j), gammagp)
+            Uvect(:,i,j) = Uinit(case_name, xm(i), ym(j), gammagp)
         End Do
     End Do
 
@@ -131,7 +123,7 @@ Program euler
             Write(STDOUT, *) time, time_max
             Do i=1, imax
                 Do j=1, jmax
-                    Uvect_e(:,i,j) = Uexact(case_number, xm(i), ym(j), time, gammagp)
+                    Uvect_e(:,i,j) = Uexact(case_name, xm(i), ym(j), time, gammagp)
                 End Do
             End Do
             Call output(Uvect, gammagp, x, y, nb_iterations / output_modulo + 1, 'sol')
@@ -140,7 +132,7 @@ Program euler
         nb_iterations = nb_iterations + 1
     End Do
 
-    Write(STDOUT, *) "Error:", error(norm_str, case_number, Uvect, time_max, gammagp)
+    Write(STDOUT, *) "Error:", error(norm_str, case_name, Uvect, time_max, gammagp)
 
     Deallocate(x, y, xm, ym)
     Deallocate(Uvect, Uvect_e, fluxF, fluxG)
@@ -395,11 +387,11 @@ Contains
         bmax = MAX( bmax, b )
     End Subroutine compute_bmax
 
-    Function error(norm, case_number, U, time, gammagp)
+    Function error(norm, case_name, U, time, gammagp)
         ! --- InOut
         Real(PR), Dimension(4,imax,jmax), Intent(In) :: U
         Real(PR), Intent(In) :: gammagp, time
-        Integer, Intent(In) :: case_number
+        Character(len=*), Intent(In) :: case_name
         Character(len=*), Intent(In) :: norm
         Real(PR), Dimension(4) :: error
         ! --- Locals
@@ -410,7 +402,7 @@ Contains
         Case ('L1') ! L1 norm
             Do i=1, imax
                 Do j=1 , jmax
-                    exact_value = Uexact(case_number, xm(i), ym(j), time, gammagp)
+                    exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
                     error = error + ABS( U(:,i,j) - exact_value )
                 End Do
             End Do
@@ -418,7 +410,7 @@ Contains
         Case ('L2') ! L2 norm
             Do i=1, imax
                 Do j=1 , jmax
-                    exact_value = Uexact(case_number, xm(i), ym(j), time, gammagp)
+                    exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
                     error = error + ( U(:,i,j) - exact_value )**2
                 End Do
             End Do
@@ -426,7 +418,7 @@ Contains
         Case ('Linfty') ! L_infinity norm
             Do i=1, imax
                 Do j=1 , jmax
-                    exact_value = Uexact(case_number, xm(i), ym(j), time, gammagp)
+                    exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
                     error = MAX( error, ABS( U(:,i,j) - exact_value ) )
                 End Do
             End Do

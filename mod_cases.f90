@@ -1,4 +1,4 @@
-Module mod_functions
+Module mod_cases
 
     Use mod_parameters
     Implicit None
@@ -15,17 +15,18 @@ Module mod_functions
         Real(PR) :: perturbation_strength
     End Type vortex_parameters
 Contains
-    Function Uinit(case_number, x, y, gammagp)
+
+    Function Uinit(case_name, x, y, gammagp)
         ! --- InOut
+        Character(len=*), Intent(In) :: case_name
         Real(PR), Intent(In) :: x, y, gammagp
-        Integer, Intent(In) :: case_number
         Real(PR), Dimension(4) :: Uinit
         ! --- Locals
         Real(PR) :: r, u, v, q, p, e
         Type(vortex_parameters) :: vtx
 
-        Select Case (case_number)
-        Case (1) ! Shock tube
+        Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('ShockTube') ! 
             If (x < .5_PR) Then
                 ! Left
                 r = 1._PR
@@ -39,16 +40,14 @@ Contains
                 v = 0._PR
                 p = .1_PR
             End If
-        Case (2) ! Isentropic vortex
+        Case ('IsentropicVortex')
             Call set_vortex_parameters(vtx, gammagp)
             Call IsentropicVortex(x, y, 0._PR, &
                 & vtx, &
                 & r, u, v, p)
         Case Default
-            r = 1._PR
-            u = 0._PR
-            v = 0._PR
-            p = 1._PR
+            Write(STDERR, *) "Unknown case ", TRIM(ADJUSTL(case_name))
+            Call Exit(1)
         End Select
 
         q = .5_PR * ( u**2 + v**2 )
@@ -57,23 +56,23 @@ Contains
         Uinit = (/ Real(PR) :: r, r*u, r*v, e /)
     End Function Uinit
 
-    Function Uexact(case_number, x, y, t, gammagp)
+    Function Uexact(case_name, x, y, t, gammagp)
         ! --- InOut
+        Character(len=*), Intent(In) :: case_name
         Real(PR), Intent(In) :: x, y, t, gammagp
-        Integer, Intent(In) :: case_number
         Real(PR), Dimension(4) :: Uexact
         ! --- Locals
         Real(PR) :: r, u, v, q, p, e
         Type(vortex_parameters) :: vtx
 
-        Select Case (case_number)
-        Case (2) ! Isentropic vortex
+        Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('IsentropicVortex')
             Call set_vortex_parameters(vtx, gammagp)
             Call IsentropicVortex(x, y, t, &
                 & vtx, &
                 & r, u, v, p)
         Case Default
-            Write(STDERR, *) "No solution available for this case (case ", case_number, ")"
+            Write(STDERR, *) "No solution available for case ", TRIM(ADJUSTL(case_name))
             Call Exit(1)
         End Select
 
@@ -83,6 +82,27 @@ Contains
         Uexact = (/ Real(PR) :: r, r*u, r*v, e /)
     End Function Uexact
 
+    Subroutine getGridDimensions(case_name, xmin, xmax, ymin, ymax)
+        ! --- InOut
+        Character(len=*), Intent(In) :: case_name
+        Real(PR), Intent(InOut) :: xmin, xmax, ymin, ymax
+        ! --- Locals
+        Type(vortex_parameters) :: vtx
+
+        Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('IsentropicVortex')
+            Call set_vortex_parameters(vtx, 1.4_PR)! The parameter 1.4 doesn't matter here
+            xmin = -vtx%domain_half_length
+            xmax = vtx%domain_half_length
+            ymin = -vtx%domain_half_length
+            ymax = vtx%domain_half_length
+        Case Default
+            Write(STDERR, *) "Unknown case ", TRIM(ADJUSTL(case_name))
+            Call Exit(1)
+        End Select
+    End Subroutine getGridDimensions
+
+    ! ===== Vortex =====
     Subroutine IsentropicVortex(x, y, time, &
             vtx, &
             & r, u, v, p)
@@ -128,4 +148,4 @@ Contains
         vtx%std = 1._PR
         vtx%perturbation_strength = SQRT(EXP(1._PR)/gammagp)*5._PR/(2._PR*PI)
     End Subroutine
-End Module mod_functions
+End Module mod_cases

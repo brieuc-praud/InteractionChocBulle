@@ -225,6 +225,7 @@ Contains
     End Subroutine ExplicitEuler
 
     Subroutine compute_Fluxes(axis, Uvect, flux)
+        ! --- InOut
         Character, Intent(In) :: axis
         Real(PR), Dimension(:,:,:), Intent(In) :: Uvect
         Real(PR), Dimension(:,0:,0:), Intent(InOut) :: flux
@@ -238,17 +239,18 @@ Contains
                         & gammagp)
                 End Do
                 ! Boundary
-                ! --- Periodic
-                flux(:,0,j) = numericalFlux(numflux_name, 'x', space_scheme_specs, &
-                    & Uvect(:,imax-1,j), Uvect(:,imax,j), Uvect(:,1,j), Uvect(:,2,j), &
-                    & gammagp)
-                flux(:,1,j) = numericalFlux(numflux_name, 'x', space_scheme_specs, &
-                    & Uvect(:,imax,j), Uvect(:,1,j), Uvect(:,2,j), Uvect(:,3,j), &
-                    & gammagp)
-                flux(:,imax-1,j) = numericalFlux(numflux_name, 'x', space_scheme_specs, &
-                    & Uvect(:,imax-2,j), Uvect(:,imax-1,j), Uvect(:,imax,j), Uvect(:,1,j), &
-                    & gammagp)
-                flux(:,imax,j) = flux(:,0,j)
+                flux(:,0,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
+                    & 0, j, &
+                    & space_scheme_specs, Uvect, gammagp)
+                flux(:,1,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
+                    & 1, j, &
+                    & space_scheme_specs, Uvect, gammagp)
+                flux(:,imax-1,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
+                    & imax-1, j, &
+                    & space_scheme_specs, Uvect, gammagp)
+                flux(:,imax,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
+                    & imax, j, &
+                    & space_scheme_specs, Uvect, gammagp)
             End Do
         Case ('y')
             Do i=1, imax
@@ -258,17 +260,18 @@ Contains
                         & gammagp)
                 End Do
                 ! Boundary
-                ! --- Periodic
-                flux(:,i,0) = numericalFlux(numflux_name, 'y', space_scheme_specs, &
-                    & Uvect(:,i,jmax-1), Uvect(:,i,jmax), Uvect(:,i,1), Uvect(:,i,2), &
-                    & gammagp)
-                flux(:,i,1) = numericalFlux(numflux_name, 'y', space_scheme_specs, &
-                    & Uvect(:,i,jmax), Uvect(:,i,1), Uvect(:,i,2), Uvect(:,i,3), &
-                    & gammagp)
-                flux(:,i,jmax-1) = numericalFlux(numflux_name, 'y', space_scheme_specs, &
-                    & Uvect(:,i,jmax-2), Uvect(:,i,jmax-1), Uvect(:,i,jmax), Uvect(:,i,1), &
-                    & gammagp)
-                flux(:,i,jmax) = flux(:,i,0)
+                flux(:,i,0) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
+                    & i, 0, &
+                    & space_scheme_specs, Uvect, gammagp)
+                flux(:,i,1) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
+                    & i, 1, &
+                    & space_scheme_specs, Uvect, gammagp)
+                flux(:,i,jmax-1) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
+                    & i, jmax-1, &
+                    & space_scheme_specs, Uvect, gammagp)
+                flux(:,i,jmax) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
+                    & i, jmax, &
+                    & space_scheme_specs, Uvect, gammagp)
             End Do
         Case Default
             Write(STDERR, *) "Unknown axis ", axis

@@ -17,11 +17,15 @@ clean:
 	make clear
 	rm -f $(EXE)
 clear:
-	rm -f *.o *.mod *.vtk error.dat
+	rm -f *.o *.mod error.dat output/*
 
 exe: $(EXE)
-	rm -f *.vtk
+	rm -f output/*
+	mkdir -p output
 	./$(EXE)
+
+run:
+	make exe
 
 plot_error: error.gp error.dat
 	gnuplot -p $<

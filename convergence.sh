@@ -17,6 +17,7 @@ REFNx=50
 REFNy=50
 REFCFL=0.25
 PWRbasis=1.1
+REFtmax=10.
 # Number of points for the convergence analysis
 NMAX=4
 
@@ -24,6 +25,7 @@ NMAX=4
 NNx=$(cat -n $PARAMS | grep "Nx" | cut -f 1)
 NNy=$(cat -n $PARAMS | grep "Ny" | cut -f 1)
 NCFL=$(cat -n $PARAMS | grep "CFL" | cut -f 1)
+Ntmax=$(cat -n $PARAMS | grep "tmax" | cut -f 1)
 NOutputMod=$(cat -n $PARAMS | grep "output_modulo" | cut -f 1)
 # Macro to change the parameters of interest
 changeParameters()
@@ -31,8 +33,9 @@ changeParameters()
     awk "NR == $NNx { print \"Nx\", $1 }\
          NR == $NNy { print \"Ny\", $2 }\
          NR == $NCFL { print \"CFL\", $3 }\
-         NR == $NOutputMod { print \"output_modulo\", $4 }\
-         NR != $NNx && NR != $NNy && NR != $NCFL && NR != $NOutputMod { print \$0 }" $PARAMS > tmp.txt
+         NR == $Ntmax { print \"tmax\", $4 }\
+         NR == $NOutputMod { print \"output_modulo\", $5 }\
+         NR != $NNx && NR != $NNy && NR != $NCFL && NR != $Ntmax && NR != $NOutputMod { print \$0 }" $PARAMS > tmp.txt
     mv tmp.txt $PARAMS
 }
 
@@ -57,7 +60,7 @@ do
 
     dx=$(echo "1./$Nx" | bc -l)
 
-    changeParameters $Nx $Ny $CFL $OutputMod
+    changeParameters $Nx $Ny $CFL $REFtmax $OutputMod
 
     output=$(exec "./$EXE")
     err=$(echo "$output" | tail -n 1 | cut -d':' -f 2 | xargs)

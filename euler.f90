@@ -28,6 +28,7 @@ Program euler
     ! Other
     Real(PR) :: deltax, deltay, deltat, time
     Type(space_scheme) :: space_scheme_specs
+    Logical :: exact_solution_available
 
 
     ! Read parameters
@@ -63,6 +64,7 @@ Program euler
                     & space_scheme_specs%limiter_str, space_scheme_specs%generalised_minmod_parameter
             Case ('case')
                 Read(buffer, *, iostat=ios) case_name
+                exact_solution_available = exactSolutionAvailable(case_name)
             Case ('error_norm')
                 Read(buffer, *, iostat=ios) norm_str
             Case ('','#')
@@ -114,25 +116,29 @@ Program euler
     nb_iterations = 0
     time = 0._PR
     Do While (time < time_max)
-        Call compute_CFL(Uvect, deltax, deltay, deltat, cfl)
+        Call compute_CFL(Uvect, time, deltax, deltay, deltat, cfl)
         time = MIN( time + deltat, time_max )
 
-        Call step(time_scheme_name)
+        Call step(time, time_scheme_name)
 
         If ( output_modulo > 0 .AND. Modulo(nb_iterations, output_modulo) == 0 ) Then
             Write(STDOUT, *) time, time_max
-            Do i=1, imax
-                Do j=1, jmax
-                    Uvect_e(:,i,j) = Uexact(case_name, xm(i), ym(j), time, gammagp)
+            If ( exact_solution_available ) Then
+                Do i=1, imax
+                    Do j=1, jmax
+                        Uvect_e(:,i,j) = Uexact(case_name, xm(i), ym(j), time, gammagp)
+                    End Do
                 End Do
-            End Do
+                Call output(Uvect_e, gammagp, x, y, nb_iterations / output_modulo + 1, 'exact')
+            End If
             Call output(Uvect, gammagp, x, y, nb_iterations / output_modulo + 1, 'sol')
-            Call output(Uvect_e, gammagp, x, y, nb_iterations / output_modulo + 1, 'exact')
         End If
         nb_iterations = nb_iterations + 1
     End Do
 
-    Write(STDOUT, *) "Error:", error(norm_str, case_name, Uvect, time_max, gammagp)
+    If (exact_solution_available) Then
+        Write(STDOUT, *) "Error:", error(norm_str, case_name, Uvect, time_max, gammagp, .False.)
+    End If
 
     Deallocate(x, y, xm, ym)
     Deallocate(Uvect, Uvect_e, fluxF, fluxG)
@@ -147,28 +153,29 @@ Program euler
     End Select
 Contains
 
-    Subroutine step(time_scheme_name)
+    Subroutine step(time, time_scheme_name)
         ! --- InOut
         Character(len=*), Intent(In) :: time_scheme_name
+        Real(PR), Intent(In) :: time
 
         Select Case (TRIM(ADJUSTL(time_scheme_name)))
         Case ('EE','ExplicitEuler') ! Explicit Euler
-            Call compute_Fluxes('x', Uvect, fluxF)
-            Call compute_Fluxes('y', Uvect, fluxG)
+            Call compute_Fluxes('x', time, Uvect, fluxF)
+            Call compute_Fluxes('y', time, Uvect, fluxG)
 
             Call ExplicitEuler(Uvect, Uvect, fluxF, fluxG, &
                 & deltax, deltay, deltat, imax, jmax)
         Case ('SSP-RK2') ! Strong-Stability preserving Runge-Kutta
             ! First stage
-            Call compute_Fluxes('x', Uvect, fluxF)
-            Call compute_Fluxes('y', Uvect, fluxG)
+            Call compute_Fluxes('x', time, Uvect, fluxF)
+            Call compute_Fluxes('y', time, Uvect, fluxG)
 
             Call ExplicitEuler(K1vect, Uvect, fluxF, fluxG, &
                 & deltax, deltay, deltat, imax, jmax)
 
             ! Second stage
-            Call compute_Fluxes('x', K1vect, fluxK1F)
-            Call compute_Fluxes('y', K1vect, fluxK1G)
+            Call compute_Fluxes('x', time, K1vect, fluxK1F)
+            Call compute_Fluxes('y', time, K1vect, fluxK1G)
 
             Call ExplicitEuler(K2vect, K1vect, fluxK1F, fluxK1G, &
                 & deltax, deltay, deltat, imax, jmax)
@@ -176,15 +183,15 @@ Contains
             Uvect = .5_PR * Uvect + .5_PR * K2vect
         Case ('SSP-RK3') ! Strong-Stability preserving Runge-Kutta
             ! First stage
-            Call compute_Fluxes('x', Uvect, fluxF)
-            Call compute_Fluxes('y', Uvect, fluxG)
+            Call compute_Fluxes('x', time, Uvect, fluxF)
+            Call compute_Fluxes('y', time, Uvect, fluxG)
 
             Call ExplicitEuler(K1vect, Uvect, fluxF, fluxG, &
                 & deltax, deltay, deltat, imax, jmax)
 
             ! Second stage
-            Call compute_Fluxes('x', K1vect, fluxK1F)
-            Call compute_Fluxes('y', K1vect, fluxK1G)
+            Call compute_Fluxes('x', time, K1vect, fluxK1F)
+            Call compute_Fluxes('y', time, K1vect, fluxK1G)
 
             Call ExplicitEuler(K2vect, K1vect, fluxK1F, fluxK1G, &
                 & deltax, deltay, deltat, imax, jmax)
@@ -192,8 +199,8 @@ Contains
             K2vect = .75_PR * Uvect + .25_PR * K2vect
 
             ! Third stage
-            Call compute_Fluxes('x', K2vect, fluxK2F)
-            Call compute_Fluxes('y', K2vect, fluxK2G)
+            Call compute_Fluxes('x', time, K2vect, fluxK2F)
+            Call compute_Fluxes('y', time, K2vect, fluxK2G)
 
             Call ExplicitEuler(K3vect, K2vect, fluxK2F, fluxK2G, &
                 & deltax, deltay, deltat, imax, jmax)
@@ -224,11 +231,14 @@ Contains
         End Do
     End Subroutine ExplicitEuler
 
-    Subroutine compute_Fluxes(axis, Uvect, flux)
+    Subroutine compute_Fluxes(axis, t, Uvect, flux)
         ! --- InOut
         Character, Intent(In) :: axis
+        Real(PR), Intent(In) :: t
         Real(PR), Dimension(:,:,:), Intent(In) :: Uvect
         Real(PR), Dimension(:,0:,0:), Intent(InOut) :: flux
+        ! --- Locals
+        Real(PR), Dimension(4) :: ULL, UL, UR, URR
 
         Select Case (axis)
         Case ('x')
@@ -239,18 +249,22 @@ Contains
                         & gammagp)
                 End Do
                 ! Boundary
-                flux(:,0,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
-                    & 0, j, &
-                    & space_scheme_specs, Uvect, gammagp)
-                flux(:,1,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
-                    & 1, j, &
-                    & space_scheme_specs, Uvect, gammagp)
-                flux(:,imax-1,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
-                    & imax-1, j, &
-                    & space_scheme_specs, Uvect, gammagp)
-                flux(:,imax,j) = numericalFluxAtBoundary(case_name, numflux_name, 'x', &
-                    & imax, j, &
-                    & space_scheme_specs, Uvect, gammagp)
+                Call valuesAtBoundary(case_name, 'x', 0, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,0,j) = numericalFlux(numflux_name, 'x', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
+                Call valuesAtBoundary(case_name, 'x', 1, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,1,j) = numericalFlux(numflux_name, 'x', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
+                Call valuesAtBoundary(case_name, 'x', imax-1, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,imax-1,j) = numericalFlux(numflux_name, 'x', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
+                Call valuesAtBoundary(case_name, 'x', imax, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,imax,j) = numericalFlux(numflux_name, 'x', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
             End Do
         Case ('y')
             Do i=1, imax
@@ -260,18 +274,22 @@ Contains
                         & gammagp)
                 End Do
                 ! Boundary
-                flux(:,i,0) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
-                    & i, 0, &
-                    & space_scheme_specs, Uvect, gammagp)
-                flux(:,i,1) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
-                    & i, 1, &
-                    & space_scheme_specs, Uvect, gammagp)
-                flux(:,i,jmax-1) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
-                    & i, jmax-1, &
-                    & space_scheme_specs, Uvect, gammagp)
-                flux(:,i,jmax) = numericalFluxAtBoundary(case_name, numflux_name, 'y', &
-                    & i, jmax, &
-                    & space_scheme_specs, Uvect, gammagp)
+                Call valuesAtBoundary(case_name, 'y', i, 0, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,i,0) = numericalFlux(numflux_name, 'y', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
+                Call valuesAtBoundary(case_name, 'y', i, 1, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,i,1) = numericalFlux(numflux_name, 'y', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
+                Call valuesAtBoundary(case_name, 'y', i, jmax-1, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,i,jmax-1) = numericalFlux(numflux_name, 'y', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
+                Call valuesAtBoundary(case_name, 'y', i, jmax, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+                flux(:,i,jmax) = numericalFlux(numflux_name, 'y', space_scheme_specs, &
+                    & ULL, UL, UR, URR, &
+                    & gammagp)
             End Do
         Case Default
             Write(STDERR, *) "Unknown axis ", axis
@@ -279,13 +297,14 @@ Contains
         End Select
     End Subroutine
 
-    Subroutine compute_CFL(U, dx, dy, dt, cfl)
+    Subroutine compute_CFL(U, t, dx, dy, dt, cfl)
         ! --- InOut ---
         Real(PR), Dimension(:,:,:), Intent(In) :: U
+        Real(PR), Intent(In) :: t
         Real(PR), Intent(In) :: dx, dy,  cfl
         Real(PR), Intent(Out) :: dt
         ! --- Locals ---
-        Real(PR), Dimension(4) :: ULi, URi
+        Real(PR), Dimension(4) :: ULi, URi, ULL, UL, UR, URR
         Real(PR) :: bx_max, by_max
         Integer :: i, j
 
@@ -298,28 +317,37 @@ Contains
                 Call reconstructAtInterface('x', ULi, URi, space_scheme_specs, &
                     & U(:,i-1,j), U(:,i,j), U(:,i+1,j), U(:,i+2,j) &
                     & )
-                Call compute_bmax( 'x', ULi, gammagp, by_max )
-                Call compute_bmax( 'x', URi, gammagp, by_max )
+                Call compute_bmax( 'x', ULi, gammagp, bx_max )
+                Call compute_bmax( 'x', URi, gammagp, bx_max )
             End Do
             ! Boundary
-            ! --- Periodic
+            Call valuesAtBoundary(case_name, 'x', 0, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
             Call reconstructAtInterface('x', ULi, URi, space_scheme_specs, &
-                & U(:,imax-1,j), U(:,imax,j), U(:,1,j), U(:,2,j) &
+                & ULL, UL, UR, URR &
                 & )
-            Call compute_bmax( 'x', ULi, gammagp, by_max )
-            Call compute_bmax( 'x', URi, gammagp, by_max )
+            Call compute_bmax( 'x', ULi, gammagp, bx_max )
+            Call compute_bmax( 'x', URi, gammagp, bx_max )
 
+            Call valuesAtBoundary(case_name, 'x', 1, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
             Call reconstructAtInterface('x', ULi, URi, space_scheme_specs, &
-                & U(:,imax,j), U(:,1,j), U(:,2,j), U(:,3,j) &
+                & ULL, UL, UR, URR &
                 & )
-            Call compute_bmax( 'x', ULi, gammagp, by_max )
-            Call compute_bmax( 'x', URi, gammagp, by_max )
+            Call compute_bmax( 'x', ULi, gammagp, bx_max )
+            Call compute_bmax( 'x', URi, gammagp, bx_max )
 
+            Call valuesAtBoundary(case_name, 'x', imax-1, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
             Call reconstructAtInterface('x', ULi, URi, space_scheme_specs, &
-                & U(:,imax-2,j), U(:,imax-1,j), U(:,imax,j), U(:,1,j) &
+                & ULL, UL, UR, URR &
                 & )
-            Call compute_bmax( 'x', ULi, gammagp, by_max )
-            Call compute_bmax( 'x', URi, gammagp, by_max )
+            Call compute_bmax( 'x', ULi, gammagp, bx_max )
+            Call compute_bmax( 'x', URi, gammagp, bx_max )
+
+            Call valuesAtBoundary(case_name, 'x', imax, j, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+            Call reconstructAtInterface('x', ULi, URi, space_scheme_specs, &
+                & ULL, UL, UR, URR &
+                & )
+            Call compute_bmax( 'x', ULi, gammagp, bx_max )
+            Call compute_bmax( 'x', URi, gammagp, bx_max )
         End Do
 
         ! --- y
@@ -328,28 +356,37 @@ Contains
                 Call reconstructAtInterface('y', ULi, URi, space_scheme_specs, &
                     & U(:,i,j-1) ,U(:,i,j), U(:,i,j+1), U(:,i,j+2) &
                     )
-                Call compute_bmax( 'y', ULi, gammagp, bx_max )
-                Call compute_bmax( 'y', URi, gammagp, bx_max )
+                Call compute_bmax( 'y', ULi, gammagp, by_max )
+                Call compute_bmax( 'y', URi, gammagp, by_max )
             End Do
             ! Boundary
-            ! --- Periodic
+            Call valuesAtBoundary(case_name, 'y', i, 0, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
             Call reconstructAtInterface('y', ULi, URi, space_scheme_specs, &
-                & U(:,i,jmax-1), U(:,i,jmax), U(:,i,1), U(:,i,2) &
-                )
-            Call compute_bmax( 'y', ULi, gammagp, bx_max )
-            Call compute_bmax( 'y', URi, gammagp, bx_max )
+                & ULL, UL, UR, URR &
+                & )
+            Call compute_bmax( 'y', ULi, gammagp, by_max )
+            Call compute_bmax( 'y', URi, gammagp, by_max )
 
+            Call valuesAtBoundary(case_name, 'y', i, 1, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
             Call reconstructAtInterface('y', ULi, URi, space_scheme_specs, &
-                & U(:,i,jmax), U(:,i,1), U(:,i,2), U(:,i,3) &
-                )
-            Call compute_bmax( 'y', ULi, gammagp, bx_max )
-            Call compute_bmax( 'y', URi, gammagp, bx_max )
+                & ULL, UL, UR, URR &
+                & )
+            Call compute_bmax( 'y', ULi, gammagp, by_max )
+            Call compute_bmax( 'y', URi, gammagp, by_max )
 
+            Call valuesAtBoundary(case_name, 'y', i, jmax-1, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
             Call reconstructAtInterface('y', ULi, URi, space_scheme_specs, &
-                & U(:,i,jmax-2), U(:,i,jmax-1), U(:,i,jmax), U(:,i,1) &
-                )
-            Call compute_bmax( 'y', ULi, gammagp, bx_max )
-            Call compute_bmax( 'y', URi, gammagp, bx_max )
+                & ULL, UL, UR, URR &
+                & )
+            Call compute_bmax( 'y', ULi, gammagp, by_max )
+            Call compute_bmax( 'y', URi, gammagp, by_max )
+
+            Call valuesAtBoundary(case_name, 'y', i, jmax, Uvect, deltax, deltay, t, ULL, UL, UR, URR, gammagp);
+            Call reconstructAtInterface('y', ULi, URi, space_scheme_specs, &
+                & ULL, UL, UR, URR &
+                & )
+            Call compute_bmax( 'y', ULi, gammagp, by_max )
+            Call compute_bmax( 'y', URi, gammagp, by_max )
         End Do
 
         dt = cfl * MIN(dx/bx_max, dy/by_max)
@@ -390,41 +427,54 @@ Contains
         bmax = MAX( bmax, b )
     End Subroutine compute_bmax
 
-    Function error(norm, case_name, U, time, gammagp)
+    Function error(norm, case_name, U, time, gammagp, compute_on_boundary)
         ! --- InOut
         Real(PR), Dimension(4,imax,jmax), Intent(In) :: U
         Real(PR), Intent(In) :: gammagp, time
         Character(len=*), Intent(In) :: case_name
         Character(len=*), Intent(In) :: norm
+        Logical, Intent(In) :: compute_on_boundary
         Real(PR), Dimension(4) :: error
         ! --- Locals
         Real(PR), Dimension(4) :: exact_value
+        Integer :: i_range_min, i_range_max, j_range_min, j_range_max
+
+        If (compute_on_boundary) Then
+            i_range_min = 1
+            i_range_max = imax
+            j_range_min = 1
+            j_range_max = jmax
+        Else
+            i_range_min = 2
+            i_range_max = imax-2
+            j_range_min = 2
+            j_range_max = jmax-2
+        End If
 
         error = 0._PR
-        Select Case (TRIM(ADJUSTL(norm)))
-        Case ('L1') ! L1 norm
-            Do i=1, imax
-                Do j=1 , jmax
-                    exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
+        Do i=i_range_min, i_range_max
+            Do j=j_range_min, j_range_max
+                exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
+                Select Case (TRIM(ADJUSTL(norm)))
+                Case ('Linfty') ! L_infinity norm
+                    error = MAX( error, ABS( U(:,i,j) - exact_value ) )
+                Case ('L1') ! L1 norm
                     error = error + ABS( U(:,i,j) - exact_value )
-                End Do
+                Case ('L2') ! L2 norm
+                    error = error + ( U(:,i,j) - exact_value )**2
+                Case Default
+                    Write(STDERR,*) "Unknown norm ", norm
+                    Call Exit(1)
+                End Select
             End Do
+        End Do
+
+        Select Case (TRIM(ADJUSTL(norm)))
+        Case ('Linfty') ! L_infinity norm
+        Case ('L1') ! L1 norm
             error = error / ( imax * jmax )
         Case ('L2') ! L2 norm
-            Do i=1, imax
-                Do j=1 , jmax
-                    exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
-                    error = error + ( U(:,i,j) - exact_value )**2
-                End Do
-            End Do
             error = SQRT( error / ( imax * jmax ) )
-        Case ('Linfty') ! L_infinity norm
-            Do i=1, imax
-                Do j=1 , jmax
-                    exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
-                    error = MAX( error, ABS( U(:,i,j) - exact_value ) )
-                End Do
-            End Do
         Case Default
             Write(STDERR,*) "Unknown norm ", norm
             Call Exit(1)

@@ -27,6 +27,20 @@ Module mod_cases
         Real(PR) :: perturbation_strength
     End Type vortex_parameters
 Contains
+    Function exactSolutionAvailable(case_name)
+        Character(len=*), Intent(In) :: case_name
+        Logical :: exactSolutionAvailable
+
+        Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('ShockBubble')
+            exactSolutionAvailable = .False.
+        Case ('IsentropicVortex', 'ShockTube')
+            exactSolutionAvailable = .True.
+        Case Default
+            Write(STDERR, *) "Unknown case ", TRIM(ADJUSTL(case_name))
+            Call Exit(1)
+        End Select
+    End Function exactSolutionAvailable
 
     Function Uinit(case_name, x, y, gammagp)
         ! --- InOut
@@ -39,7 +53,28 @@ Contains
         Type(shock_tube_parameters) :: st
 
         Select Case (TRIM(ADJUSTL(case_name)))
-        Case ('ShockTube') ! 
+        Case ('ShockBubble')
+            If (x < 0._PR) Then
+                ! Left
+                r = 3.81_PR
+                u = 2.85_PR
+                v = 0._PR
+                p = 10._PR
+            Else
+                ! Right
+                If ( (x-.3_PR)**2 + y**2 < .2_PR**2 ) Then
+                    r = .1_PR
+                    u = 0._PR
+                    v = 0._PR
+                    p = 1._PR
+                Else
+                    r = 1._PR
+                    u = 0._PR
+                    v = 0._PR
+                    p = 1._PR
+                End If
+            End If
+        Case ('ShockTube')
             Call set_shock_tube_parameters(st, gammagp)
             If (x < st%interface_abscissa) Then
                 ! Left
@@ -102,28 +137,88 @@ Contains
         Uexact = (/ Real(PR) :: r, r*u, r*v, e /)
     End Function Uexact
 
-    Function numericalFluxAtBoundary(case_name, numflux_name, axis, &
-            & i, j, space_scheme_specs, Uvect, gammagp)
+    Subroutine valuesAtBoundary(case_name, axis, &
+            & i, j, Uvect, dx, dy, t, ULL, UL, UR, URR, gammagp)
         ! --- InOut
-        Character(len=*), Intent(In) :: case_name, numflux_name
+        Character(len=*), Intent(In) :: case_name
         Character, Intent(In) :: axis
         Integer, Intent(In) :: i,j
         Real(PR), Dimension(:,:,:), Intent(In) :: Uvect
-        Real(PR), Intent(In) :: gammagp
-        Type(space_scheme), Intent(In) :: space_scheme_specs
-        Real(PR), Dimension(4) :: numericalFluxAtBoundary
+        Real(PR), Intent(In) :: dx, dy, t, gammagp
+        Real(PR), Dimension(4), Intent(InOut) :: ULL, UL, UR, URR
         ! --- Locals
         Integer :: imax, jmax
         Integer, Dimension(3) :: shape_Uvect
-        Real(PR), Dimension(4) :: ULL, UL, UR, URR
 
         shape_Uvect = SHAPE(Uvect)
         imax = shape_Uvect(2)
         jmax = shape_Uvect(3)
 
         Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('ShockBubble')
+            Select Case (axis)
+            Case ('x')
+                ! Inflow
+                If (i == 0) Then
+                    ULL = Uinit(case_name, -.1_PR, 0._PR, gammagp)
+                    UL = Uinit(case_name, -.1_PR, 0._PR, gammagp)
+                    UR = Uvect(:,1,j)
+                    URR = Uvect(:,2,j)
+                Else If (i == 1) Then
+                    ULL = Uinit(case_name, -.1_PR, 0._PR, gammagp)
+                    UL = Uvect(:,1,j)
+                    UR = Uvect(:,2,j)
+                    URR = Uvect(:,3,j)
+                ! Constant extrapolation
+                Else If (i == imax-1) Then
+                    ULL = Uvect(:,imax-2,j)
+                    UL = Uvect(:,imax-1,j)
+                    UR = Uvect(:,imax,j)
+                    URR = Uvect(:,imax,j)
+                Else If (i == imax) Then
+                    ULL = Uvect(:,imax-1,j)
+                    UL = Uvect(:,imax,j)
+                    UR = Uvect(:,imax,j)
+                    URR = Uvect(:,imax,j)
+                Else
+                    Write(STDERR, *) "Invalid index for boundary condition ", i
+                    Call Exit(1)
+                End If
+            Case ('y')
+                ! Reflecting / Symmetry
+                If (j == 0) Then
+                    UR = Uvect(:,i,1)
+                    URR = Uvect(:,i,2)
+                    UL = UR
+                    UL(3) = -UL(3)
+                    ULL = URR
+                    ULL(3) = -ULL(3)
+                Else If (j == 1) Then
+                    UL = Uvect(:,i,1)
+                    UR = Uvect(:,i,2)
+                    URR = Uvect(:,i,3)
+                    ULL = UL
+                    ULL(3) = -ULL(3)
+                Else If (j == jmax-1) Then
+                    ULL = Uvect(:,i,jmax-2)
+                    UL = Uvect(:,i,jmax-1)
+                    UR = Uvect(:,i,jmax)
+                    URR = UR
+                    URR(3) = -URR(3)
+                Else If (j == jmax) Then
+                    ULL = Uvect(:,i,jmax-1)
+                    UL = Uvect(:,i,jmax)
+                    UR = UL
+                    UR(3) = -UR(3)
+                    URR = ULL
+                    URR(3) = -URR(3)
+                Else
+                    Write(STDERR, *) "Invalid index for boundary condition ", j
+                    Call Exit(1)
+                End If
+            End Select
         Case ('ShockTube')
-            ! Absorbing
+            ! Constant extrapolation
             Select Case (axis)
             Case ('x')
                 If (i == 0) Then
@@ -150,9 +245,6 @@ Contains
                     Write(STDERR, *) "Invalid index for boundary condition ", i
                     Call Exit(1)
                 End If
-                numericalFluxAtBoundary = numericalFlux(numflux_name, 'x', space_scheme_specs, &
-                    & ULL, UL, UR, URR, &
-                    & gammagp)
             Case ('y')
                 If (j == 0) Then
                     ULL = Uvect(:,i,1)
@@ -178,12 +270,6 @@ Contains
                     Write(STDERR, *) "Invalid index for boundary condition ", j
                     Call Exit(1)
                 End If
-                numericalFluxAtBoundary = numericalFlux(numflux_name, 'y', space_scheme_specs, &
-                    & ULL, UL, UR, URR, &
-                    & gammagp)
-            Case Default
-                Write(STDERR, *) "Unknown axis ", axis
-                Call Exit(1)
             End Select
         Case ('IsentropicVortex')
             ! Periodic
@@ -208,9 +294,6 @@ Contains
                     Write(STDERR, *) "Invalid index for boundary condition ", i
                     Call Exit(1)
                 End If
-                numericalFluxAtBoundary = numericalFlux(numflux_name, 'x', space_scheme_specs, &
-                    & ULL, UL, UR, URR, &
-                    & gammagp)
             Case ('y')
                 If (j == 0 .OR. j == jmax) Then
                     ULL = Uvect(:,i,jmax-1)
@@ -231,9 +314,6 @@ Contains
                     Write(STDERR, *) "Invalid index for boundary condition ", j
                     Call Exit(1)
                 End If
-                numericalFluxAtBoundary = numericalFlux(numflux_name, 'y', space_scheme_specs, &
-                    & ULL, UL, UR, URR, &
-                    & gammagp)
             Case Default
                 Write(STDERR, *) "Unknown axis ", axis
                 Call Exit(1)
@@ -242,7 +322,7 @@ Contains
             Write(STDERR, *) "Unknown case ", TRIM(ADJUSTL(case_name))
             Call Exit(1)
         End Select
-    End Function numericalFluxAtBoundary
+    End Subroutine valuesAtBoundary
 
     Subroutine getGridDimensions(case_name, xmin, xmax, ymin, ymax)
         ! --- InOut
@@ -253,6 +333,11 @@ Contains
         Type(shock_tube_parameters) :: st
 
         Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('ShockBubble')
+            xmin = -.1_PR
+            xmax = 1.6_PR
+            ymin = 0._PR
+            ymax = .5_PR
         Case ('ShockTube')
             Call set_shock_tube_parameters(st, 1.4_PR)! The parameter 1.4 doesn't matter here
             xmin = 0._PR

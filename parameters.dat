@@ -1,18 +1,18 @@
-Nx 340
+Nx 100
 Ny 100
 
-tmax 0.5
+tmax 10.
 CFL 0.5
 
 gamma 1.4
 
 output_modulo 20
 
-case ShockBubble # IsentropicVortex, ShockTube, ShockBubble
+case IsentropicVortex # IsentropicVortex, ShockTube, ShockBubble
 
 error_norm L1
 
 # space_scheme: order, slope finite difference scheme, limiter, generalised minmod parameter (all options should be specified even if not used)
-space_scheme 1,centered,vanLeer,1.
-time_scheme EE
-flux HLLC
+space_scheme 1,centered,order3,1.
+time_scheme EE # EE, SSP-RK2, SSP-RK3
+flux Rusanov # Rusanov, HLL, HLLC

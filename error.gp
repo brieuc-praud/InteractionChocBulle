@@ -11,7 +11,7 @@ set format y "%2.0t.10^{%L}"
 set title "Error"
 
 f(x)=a*x+b
-fit f(x) ERRFILE u (log($1)):(log($5)) via a,b
+fit f(x) ERRFILE u (log($1)):(log($4)) via a,b
 plot exp(f(log(x))) lc rgb 'gray' dt 4 t sprintf("slope %.2f", a)
 
 replot ERRFILE u 1:2 w lp t "density"

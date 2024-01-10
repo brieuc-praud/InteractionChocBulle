@@ -1,7 +1,7 @@
 Program euler
     Use mod_fluxes
     Use mod_output
-    Use mod_cases
+    Use mod_quadrature
     Use mod_test
 
     Implicit None
@@ -30,7 +30,7 @@ Program euler
     Type(space_scheme) :: space_scheme_specs
     Logical :: exact_solution_available
 
-
+    exact_solution_available = .False.
     ! Read parameters
     Open(111, File=parameters)
     Do While (ios == 0)
@@ -100,7 +100,7 @@ Program euler
     ! Initialise U
     Do i=1, imax
         Do j=1, jmax
-            Uvect(:,i,j) = Uinit(case_name, xm(i), ym(j), gammagp)
+            Uvect(:,i,j) = Uinit_avg(case_name, xm(i), ym(j), gammagp, deltax, deltay, 4)
         End Do
     End Do
 
@@ -117,16 +117,18 @@ Program euler
     time = 0._PR
     Do While (time < time_max)
         Call compute_CFL(Uvect, time, deltax, deltay, deltat, cfl)
-        time = MIN( time + deltat, time_max )
+        deltat = MIN( deltat, time_max - time ) ! Adjust the time step to end at time_max
+        time = time + deltat
 
-        Call step(time, time_scheme_name)
+        Call step(time, deltat, time_scheme_name)
 
         If ( output_modulo > 0 .AND. Modulo(nb_iterations, output_modulo) == 0 ) Then
             Write(STDOUT, *) time, time_max
             If ( exact_solution_available ) Then
                 Do i=1, imax
                     Do j=1, jmax
-                        Uvect_e(:,i,j) = Uexact(case_name, xm(i), ym(j), time, gammagp)
+                        Uvect_e(:,i,j) = Uexact_avg(case_name, xm(i), ym(j), time, gammagp, &
+                            & deltax, deltay, 4)
                     End Do
                 End Do
                 Call output(Uvect_e, gammagp, x, y, nb_iterations / output_modulo + 1, 'exact')
@@ -137,7 +139,7 @@ Program euler
     End Do
 
     If (exact_solution_available) Then
-        Write(STDOUT, *) "Error:", error(norm_str, case_name, Uvect, time_max, gammagp, .False.)
+        Write(STDOUT, *) "dx: ", deltax, ", Error:", error(norm_str, case_name, Uvect, time_max, gammagp, .True.)
     End If
 
     Deallocate(x, y, xm, ym)
@@ -146,17 +148,17 @@ Program euler
     Case ('SSP-RK2') ! Strong-Stability preserving Runge-Kutta
         Deallocate(K1vect, fluxK1F, fluxK1G)
         Deallocate(K2vect, fluxK2F, fluxK2G)
-    Case ('SSP-RK3') ! Strong-Stability preserving Runge-Kutta
+    Case ('SSP-RK3')
         Deallocate(K1vect, fluxK1F, fluxK1G)
         Deallocate(K2vect, fluxK2F, fluxK2G)
         Deallocate(K3vect, fluxK3F, fluxK3G)
     End Select
 Contains
 
-    Subroutine step(time, time_scheme_name)
+    Subroutine step(time, deltat, time_scheme_name)
         ! --- InOut
         Character(len=*), Intent(In) :: time_scheme_name
-        Real(PR), Intent(In) :: time
+        Real(PR), Intent(In) :: time, deltat
 
         Select Case (TRIM(ADJUSTL(time_scheme_name)))
         Case ('EE','ExplicitEuler') ! Explicit Euler
@@ -437,24 +439,27 @@ Contains
         Real(PR), Dimension(4) :: error
         ! --- Locals
         Real(PR), Dimension(4) :: exact_value
-        Integer :: i_range_min, i_range_max, j_range_min, j_range_max
+        Integer :: i_range_min, i_range_max, j_range_min, j_range_max, nb_cells
 
         If (compute_on_boundary) Then
             i_range_min = 1
             i_range_max = imax
             j_range_min = 1
             j_range_max = jmax
+            nb_cells = imax*jmax
         Else
             i_range_min = 2
-            i_range_max = imax-2
+            i_range_max = imax-1
             j_range_min = 2
-            j_range_max = jmax-2
+            j_range_max = jmax-1
+            nb_cells = (imax-2)*(jmax-2)
         End If
 
         error = 0._PR
         Do i=i_range_min, i_range_max
             Do j=j_range_min, j_range_max
-                exact_value = Uexact(case_name, xm(i), ym(j), time, gammagp)
+                exact_value = Uexact_avg(case_name, xm(i), ym(j), time, gammagp, &
+                    & deltax, deltay, 1)
                 Select Case (TRIM(ADJUSTL(norm)))
                 Case ('Linfty') ! L_infinity norm
                     error = MAX( error, ABS( U(:,i,j) - exact_value ) )
@@ -472,9 +477,9 @@ Contains
         Select Case (TRIM(ADJUSTL(norm)))
         Case ('Linfty') ! L_infinity norm
         Case ('L1') ! L1 norm
-            error = error / ( imax * jmax )
+            error = error / nb_cells
         Case ('L2') ! L2 norm
-            error = SQRT( error / ( imax * jmax ) )
+            error = SQRT( error / nb_cells )
         Case Default
             Write(STDERR,*) "Unknown norm ", norm
             Call Exit(1)

@@ -84,7 +84,7 @@ Contains
         b = MAX( bL, bR )
 
         Rusanov = fluxFunc(axis, UL, gammagp) + fluxFunc(axis, UR, gammagp)
-        Rusanov = 0.5_PR * ( Rusanov - b*(UR - UL) )
+        Rusanov = .5_PR * ( Rusanov - b*(UR - UL) )
     End Function Rusanov
 
     Function HLL(axis, UL, UR, gammagp)

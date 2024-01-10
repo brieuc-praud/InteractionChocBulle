@@ -105,6 +105,9 @@ Contains
                     & .5_PR * ( smoothnessR + 1._PR ), &
                     & space_scheme_specs%generalised_minmod_parameter ) &
                     & )
+            Case ('order3')
+                limiterL = limiter_order3(smoothnessL)
+                limiterR = limiter_order3(1._PR/smoothnessR)
             Case Default
                 Write(STDERR,*) "Unknown limiter ", space_scheme_specs%limiter_str
                 Call Exit(1)
@@ -118,5 +121,16 @@ Contains
             Call Exit(1)
         End Select
     End Subroutine reconstructAtInterface
+
+    Function limiter_order3(smoothness)
+        ! --- InOut
+        Real(PR), Dimension(4), Intent(In) :: smoothness
+        Real(PR), Dimension(4) :: limiter_order3
+
+        limiter_order3 = MAX(0._PR, MIN((2._PR+smoothness)/3._PR, &
+            & MAX(-.5_PR*smoothness, MIN(2._PR*smoothness, (2._PR+smoothness)/3._PR, 1.6_PR)) &
+            & ))
+
+    End Function limiter_order3
 
 End Module mod_limiters

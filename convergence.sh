@@ -17,9 +17,9 @@ REFNx=50
 REFNy=50
 REFCFL=0.25
 PWRbasis=1.1
-REFtmax=10.
+REFtmax=10
 # Number of points for the convergence analysis
-NMAX=4
+NMAX=5
 
 # Get the line of each parameter
 NNx=$(cat -n $PARAMS | grep "Nx" | cut -f 1)
@@ -51,11 +51,11 @@ for i in $(seq 1 $NMAX)
 do
     echo -ne "  $i/$NMAX\r"
 
-    Nx=$(echo "$REFNx * $PWRbasis^$i" | bc -l)
+    Nx=$(echo "$REFNx * $PWRbasis^($i-1)" | bc -l)
     Nx=${Nx%.*} #Conversion to an integer
-    Ny=$(echo "$REFNy * $PWRbasis^$i" | bc -l)
+    Ny=$(echo "$REFNy * $PWRbasis^($i-1)" | bc -l)
     Ny=${Ny%.*}
-    CFL=$(echo "$REFCFL / $PWRbasis^$i" | bc -l)
+    CFL=0.25 #$(echo "$REFCFL / $PWRbasis^($i-1)" | bc -l)
     OutputMod=-1
 
     dx=$(echo "1./$Nx" | bc -l)
@@ -63,6 +63,8 @@ do
     changeParameters $Nx $Ny $CFL $REFtmax $OutputMod
 
     output=$(exec "./$EXE")
-    err=$(echo "$output" | tail -n 1 | cut -d':' -f 2 | xargs)
+    dx=$(echo "$output" | tail -n 1 | cut -d':' -f2 | cut -d',' -f1 | xargs)
+    err=$(echo "$output" | tail -n 1 | cut -d':' -f3 | xargs)
+
     echo "$dx $err" >> $ERRFILE
 done

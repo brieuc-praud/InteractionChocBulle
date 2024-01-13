@@ -27,8 +27,8 @@ Module mod_cases
         Real(PR) :: perturbation_strength
     End Type vortex_parameters
 Contains
-    Function exactSolutionAvailable(case_name)
-        Character(len=*), Intent(In) :: case_name
+    Function exactSolutionAvailable()
+        ! --- InOut
         Logical :: exactSolutionAvailable
 
         Select Case (TRIM(ADJUSTL(case_name)))
@@ -42,10 +42,9 @@ Contains
         End Select
     End Function exactSolutionAvailable
 
-    Function Uinit(case_name, x, y, gammagp)
+    Function Uinit(x, y)
         ! --- InOut
-        Character(len=*), Intent(In) :: case_name
-        Real(PR), Intent(In) :: x, y, gammagp
+        Real(PR), Intent(In) :: x, y
         Real(PR), Dimension(4) :: Uinit
         ! --- Locals
         Real(PR) :: r, u, v, q, p, e
@@ -105,10 +104,9 @@ Contains
         Uinit = (/ Real(PR) :: r, r*u, r*v, e /)
     End Function Uinit
 
-    Function Uexact(case_name, x, y, t, gammagp)
+    Function Uexact(x, y, t)
         ! --- InOut
-        Character(len=*), Intent(In) :: case_name
-        Real(PR), Intent(In) :: x, y, t, gammagp
+        Real(PR), Intent(In) :: x, y, t
         Real(PR), Dimension(4) :: Uexact
         ! --- Locals
         Real(PR) :: r, u, v, q, p, e
@@ -137,22 +135,12 @@ Contains
         Uexact = (/ Real(PR) :: r, r*u, r*v, e /)
     End Function Uexact
 
-    Subroutine valuesAtBoundary(case_name, axis, &
-            & i, j, Uvect, dx, dy, t, ULL, UL, UR, URR, gammagp)
+    Subroutine valuesAtBoundary(axis, i, j, Uvect, ULL, UL, UR, URR)
         ! --- InOut
-        Character(len=*), Intent(In) :: case_name
         Character, Intent(In) :: axis
         Integer, Intent(In) :: i,j
         Real(PR), Dimension(:,:,:), Intent(In) :: Uvect
-        Real(PR), Intent(In) :: dx, dy, t, gammagp
         Real(PR), Dimension(4), Intent(InOut) :: ULL, UL, UR, URR
-        ! --- Locals
-        Integer :: imax, jmax
-        Integer, Dimension(3) :: shape_Uvect
-
-        shape_Uvect = SHAPE(Uvect)
-        imax = shape_Uvect(2)
-        jmax = shape_Uvect(3)
 
         Select Case (TRIM(ADJUSTL(case_name)))
         Case ('ShockBubble')
@@ -160,12 +148,12 @@ Contains
             Case ('x')
                 ! Inflow
                 If (i == 0) Then
-                    ULL = Uinit(case_name, -.1_PR, 0._PR, gammagp)
-                    UL = Uinit(case_name, -.1_PR, 0._PR, gammagp)
+                    ULL = Uinit(-.1_PR, 0._PR)
+                    UL = Uinit(-.1_PR, 0._PR)
                     UR = Uvect(:,1,j)
                     URR = Uvect(:,2,j)
                 Else If (i == 1) Then
-                    ULL = Uinit(case_name, -.1_PR, 0._PR, gammagp)
+                    ULL = Uinit(-.1_PR, 0._PR)
                     UL = Uvect(:,1,j)
                     UR = Uvect(:,2,j)
                     URR = Uvect(:,3,j)
@@ -324,9 +312,8 @@ Contains
         End Select
     End Subroutine valuesAtBoundary
 
-    Subroutine getGridDimensions(case_name, xmin, xmax, ymin, ymax)
+    Subroutine getGridDimensions(xmin, xmax, ymin, ymax)
         ! --- InOut
-        Character(len=*), Intent(In) :: case_name
         Real(PR), Intent(InOut) :: xmin, xmax, ymin, ymax
         ! --- Locals
         Type(vortex_parameters) :: vtx
@@ -339,13 +326,13 @@ Contains
             ymin = 0._PR
             ymax = .5_PR
         Case ('ShockTube')
-            Call set_shock_tube_parameters(st, 1.4_PR)! The parameter 1.4 doesn't matter here
+            Call set_shock_tube_parameters(st, gammagp)! The parameter 'gammagp' doesn't matter here
             xmin = 0._PR
             xmax = st%length
             ymin = -.5_PR*st%width
             ymax = .5_PR*st%width
         Case ('IsentropicVortex')
-            Call set_vortex_parameters(vtx, 1.4_PR)! The parameter 1.4 doesn't matter here
+            Call set_vortex_parameters(vtx, gammagp)! The parameter 'gammagp' doesn't matter here
             xmin = -vtx%domain_half_length
             xmax = vtx%domain_half_length
             ymin = -vtx%domain_half_length

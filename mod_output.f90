@@ -1,25 +1,19 @@
 Module mod_output
 
+    Use mod_parameters
+
     Implicit None
 
 Contains
-    Subroutine output(U, gammagp, x, y, nb_filename, filename_prefix)
-        Use mod_parameters
-
-        !--- Intent In
+    Subroutine output(U, nb_filename, filename_prefix)
+        !--- InOut
+        Real(PR), Dimension(4,imax,jmax) :: U
         Integer, Intent(In) :: nb_filename
-        Character(len=*) :: filename_prefix
-        Real(PR), Dimension(0:), Intent(In) :: x, y
-        Real(PR), Dimension(:,:,:), Intent(In) :: U
-        Real(PR), Intent(In) :: gammagp
-
+        Character(len=*), Intent(In) :: filename_prefix
         !--- Locals
-        Integer :: imax, jmax, i, j
+        Integer :: i, j
         Character(len=30) :: filename
-        Real(PR), Dimension(Size(x)-1,Size(y)-1) :: density, velocity_u, velocity_v, energy, q, pressure
-
-        imax = Size(x) - 1
-        jmax = Size(y) - 1
+        Real(PR), Dimension(imax,jmax) :: density, velocity_u, velocity_v, energy, q, pressure
 
         density = U(1,:,:)
         velocity_u = U(2,:,:) / density

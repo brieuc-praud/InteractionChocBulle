@@ -5,10 +5,9 @@ Module mod_quadrature
 
 Contains
 
-    Function Uexact_avg(case_name, x, y, t, gammagp, deltax, deltay, nb_quadrature_points)
+    Function Uexact_avg(x, y, t, nb_quadrature_points)
         ! --- InOut
-        Character(len=*), Intent(In) :: case_name
-        Real(PR), Intent(In) :: x, y, t, gammagp, deltax, deltay
+        Real(PR), Intent(In) :: x, y, t
         Integer, Intent(In) :: nb_quadrature_points
         Real(PR), Dimension(4) :: Uexact_avg
         ! --- Locals
@@ -16,15 +15,15 @@ Contains
 
         Select Case (nb_quadrature_points)
         Case (1)
-            Uexact_avg = Uexact(case_name, x, y, t, gammagp)
+            Uexact_avg = Uexact(x, y, t)
         Case (4)
             p = SQRT(3._PR)/3._PR
             px = p*deltax
             py = p*deltay
-            Uexact_avg = Uexact(case_name, x-px , y-py, t, gammagp)
-            Uexact_avg = Uexact_avg + Uexact(case_name, x-px , y+py, t, gammagp)
-            Uexact_avg = Uexact_avg + Uexact(case_name, x+px , y-py, t, gammagp)
-            Uexact_avg = Uexact_avg + Uexact(case_name, x+px , y+py, t, gammagp)
+            Uexact_avg = Uexact(x-px , y-py, t)
+            Uexact_avg = Uexact_avg + Uexact(x-px , y+py, t)
+            Uexact_avg = Uexact_avg + Uexact(x+px , y-py, t)
+            Uexact_avg = Uexact_avg + Uexact(x+px , y+py, t)
         Case Default
             Write(STDERR, *) "No quadrature formula available with ", nb_quadrature_points, " points"
             Call Exit(1)
@@ -34,10 +33,9 @@ Contains
 
     End Function Uexact_avg
 
-    Function Uinit_avg(case_name, x, y, gammagp, deltax, deltay, nb_quadrature_points)
+    Function Uinit_avg(x, y, nb_quadrature_points)
         ! --- InOut
-        Character(len=*), Intent(In) :: case_name
-        Real(PR), Intent(In) :: x, y, gammagp, deltax, deltay
+        Real(PR), Intent(In) :: x, y
         Integer, Intent(In) :: nb_quadrature_points
         Real(PR), Dimension(4) :: Uinit_avg
         ! --- Locals
@@ -45,15 +43,15 @@ Contains
 
         Select Case (nb_quadrature_points)
         Case (1)
-            Uinit_avg = Uinit(case_name, x, y, gammagp)
+            Uinit_avg = Uinit(x, y)
         Case (4)
             p = SQRT(3._PR)/3._PR
             px = p*deltax
             py = p*deltay
-            Uinit_avg = Uinit(case_name, x-px , y-py, gammagp)
-            Uinit_avg = Uinit_avg + Uinit(case_name, x-px , y+py, gammagp)
-            Uinit_avg = Uinit_avg + Uinit(case_name, x+px , y-py, gammagp)
-            Uinit_avg = Uinit_avg + Uinit(case_name, x+px , y+py, gammagp)
+            Uinit_avg = Uinit(x-px , y-py)
+            Uinit_avg = Uinit_avg + Uinit(x-px , y+py)
+            Uinit_avg = Uinit_avg + Uinit(x+px , y-py)
+            Uinit_avg = Uinit_avg + Uinit(x+px , y+py)
         Case Default
             Write(STDERR, *) "No quadrature formula available with ", nb_quadrature_points, " points"
             Call Exit(1)

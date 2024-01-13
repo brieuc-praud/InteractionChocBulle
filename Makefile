@@ -2,7 +2,10 @@ EXE = euler
 F90 = gfortran
 OPT = -Og -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
 #OPT = -O2
-OBJ = mod_parameters.o mod_limiters.o mod_fluxes.o  mod_cases.o mod_quadrature.o mod_output.o mod_test.o $(EXE).o
+OBJ = mod_parameters.o mod_input.o mod_limiters.o mod_fluxes.o  mod_cases.o mod_quadrature.o mod_output.o main.o
+
+
+PARAMS = parameters.dat
 
 $(EXE): $(OBJ)
 	$(F90) $(OPT) -o $(EXE) $^
@@ -22,7 +25,7 @@ clear:
 exe: $(EXE)
 	rm -f output/*
 	mkdir -p output
-	./$(EXE)
+	./$(EXE) $(PARAMS)
 
 run:
 	make exe

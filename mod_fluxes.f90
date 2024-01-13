@@ -7,37 +7,33 @@ Module mod_fluxes
 Contains
 
     ! ===== Generical flux interface =====
-    Function numericalFlux(numflux_name, axis, space_scheme_specs, ULL, UL, UR, URR, gammagp)
+    Function numericalFlux(axis, ULL, UL, UR, URR)
         ! --- InOut
-        Character(len=*), Intent(In) :: numflux_name
         Character, Intent(In) :: axis ! x,  y
-        Type(space_scheme), Intent(In) :: space_scheme_specs
         Real(PR), Dimension(4), Intent(In) :: ULL, UL, UR, URR
-        Real(PR), Intent(In) :: gammagp
         Real(PR), Dimension(4) :: numericalFlux
         ! --- Locals
         Real(PR), Dimension(4) :: ULi, URi
 
-        Call reconstructAtInterface(axis, ULi, URi, space_scheme_specs, ULL, UL, UR, URR)
+        Call reconstructAtInterface(axis, ULi, URi, ULL, UL, UR, URR)
 
-        Select Case (TRIM(ADJUSTL(numflux_name)))
+        Select Case (TRIM(ADJUSTL(num_scheme%space_scheme_name)))
         Case ('Rusanov')
-            numericalFlux = Rusanov(axis, ULi, URi, gammagp)
+            numericalFlux = Rusanov(axis, ULi, URi)
         Case ('HLL')
-            numericalFlux = HLL(axis, ULi, URi, gammagp)
+            numericalFlux = HLL(axis, ULi, URi)
         Case ('HLLC')
-            numericalFlux = HLLC(axis, ULi, URi, gammagp)
+            numericalFlux = HLLC(axis, ULi, URi)
         Case Default
-            Write(STDERR,*) "Unknown flux name ", TRIM(ADJUSTL(numflux_name))
+            Write(STDERR,*) "Unknown flux name ", TRIM(ADJUSTL(num_scheme%space_scheme_name))
             Call Exit(1)
         End Select
     End Function numericalFlux
 
     ! ===== Numerical fluxes implementations =====
-    Function Rusanov(axis, UL, UR, gammagp)
+    Function Rusanov(axis, UL, UR)
         ! --- InOut
         Real(PR), Dimension(4), Intent(In) :: UL, UR
-        Real(PR), Intent(In) :: gammagp
         Character, Intent(In) :: axis ! x,  y
         Real(PR), Dimension(4) :: Rusanov
         ! --- Locals
@@ -83,14 +79,13 @@ Contains
         bR = MAX( l1R, l3R )
         b = MAX( bL, bR )
 
-        Rusanov = fluxFunc(axis, UL, gammagp) + fluxFunc(axis, UR, gammagp)
+        Rusanov = fluxFunc(axis, UL) + fluxFunc(axis, UR)
         Rusanov = .5_PR * ( Rusanov - b*(UR - UL) )
     End Function Rusanov
 
-    Function HLL(axis, UL, UR, gammagp)
+    Function HLL(axis, UL, UR)
         ! --- InOut
         Real(PR), Dimension(4), Intent(In) :: UL, UR
-        Real(PR), Intent(In) :: gammagp
         Character, Intent(In) :: axis ! x,  y
         Real(PR), Dimension(4) :: HLL
         ! --- Locals
@@ -130,8 +125,8 @@ Contains
             Call Exit(1)
         End Select
 
-        fluxL = fluxFunc(axis, UL, gammagp)
-        fluxR = fluxFunc(axis, UR, gammagp)
+        fluxL = fluxFunc(axis, UL)
+        fluxR = fluxFunc(axis, UR)
 
         b_minusL = velocityL - aL
         b_plusL = velocityL + aL
@@ -150,10 +145,9 @@ Contains
         End If
     End Function HLL
 
-    Function HLLC(axis, UL, UR, gammagp)
+    Function HLLC(axis, UL, UR)
         ! --- InOut
         Real(PR), Dimension(4), Intent(In) :: UL, UR
-        Real(PR), Intent(In) :: gammagp
         Character, Intent(In) :: axis ! x,  y
         Real(PR), Dimension(4) :: HLLC
         ! --- Locals
@@ -197,8 +191,8 @@ Contains
             Call Exit(1)
         End Select
 
-        fluxL = fluxFunc(axis, UL, gammagp)
-        fluxR = fluxFunc(axis, UR, gammagp)
+        fluxL = fluxFunc(axis, UL)
+        fluxR = fluxFunc(axis, UR)
 
         b_minusL = velocityL - aL
         b_plusL = velocityL + aL
@@ -264,12 +258,11 @@ Contains
     End Function HLLC
 
 
-    ! ===== Fluxes functions =====
-    Function fluxFunc(axis, Uvect, gammagp)
+    ! ===== Flux function =====
+    Function fluxFunc(axis, Uvect)
         ! --- InOut
         Character, Intent(In) :: axis
         Real(PR), Dimension(4), Intent(In) :: Uvect
-        Real(PR), Intent(In) :: gammagp
         Real(PR), Dimension(4) :: fluxFunc
         ! --- Locals
         Real(PR) :: r, ru, rv, e, u, v, p, q

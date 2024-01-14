@@ -1,8 +1,8 @@
 EXE = euler
 F90 = gfortran
-OPT = -Og -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
-#OPT = -O2
-OBJ = mod_parameters.o mod_input.o mod_limiters.o mod_fluxes.o  mod_cases.o mod_quadrature.o mod_output.o main.o
+#OPT = -Og -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
+OPT = -O3
+OBJ = mod_parameters.o mod_input.o mod_limiters.o mod_fluxes.o mod_cases.o mod_output.o main.o
 
 
 PARAMS = parameters.dat
@@ -18,9 +18,9 @@ $(EXE): $(OBJ)
 
 clean:
 	make clear
-	rm -f $(EXE)
+	rm -f *.o $(EXE)
 clear:
-	rm -f *.o *.mod error.dat output/*
+	rm -f *.mod error.dat output/*
 
 exe: $(EXE)
 	rm -f output/*
@@ -34,4 +34,4 @@ plot_error: error.gp error.dat
 	gnuplot -p $<
 	
 error.dat: $(EXE) convergence.sh
-	./convergence.sh $<
+	./convergence.sh $< $(PARAMS)

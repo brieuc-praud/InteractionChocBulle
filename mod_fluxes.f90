@@ -37,46 +37,36 @@ Contains
         Character, Intent(In) :: axis ! x,  y
         Real(PR), Dimension(4) :: Rusanov
         ! --- Locals
-        Real(PR) :: rL, velocity_uL, velocity_vL, eL, pressureL, qL, aL, bL, l1L, l3L
-        Real(PR) :: rR, velocity_uR, velocity_vR, eR, pressureR, qR, aR, bR, l1R, l3R
+        Real(PR) :: rL, velocity_uL, velocity_vL, velocityL, pressureL, aL, b_minusL, b_plusL, bL
+        Real(PR) :: rR, velocity_uR, velocity_vR, velocityR, pressureR, aR, b_minusR, b_plusR, bR
         Real(PR) :: b
 
         ! == Left
-        rL = UL(1)
-        velocity_uL = UL(2)/rL
-        velocity_vL = UL(3)/rL
-        eL = UL(4)
-        qL = .5_PR * ( velocity_uL**2 + velocity_vL**2 )
-        pressureL = (gammagp - 1._PR)*(eL - rL*qL)
+        Call conservativeToPrimitive(UL, rL, velocity_uL, velocity_vL, pressureL)
         aL = SQRT(gammagp * pressureL / rL)
-
         ! == Right
-        rR = UR(1)
-        velocity_uR = UR(2)/rR
-        velocity_vR = UR(3)/rR
-        eR = UR(4)
-        qR = .5_PR * ( velocity_uR**2 + velocity_vR**2 )
-        pressureR = (gammagp - 1._PR)*(eR - rR*qR)
+        Call conservativeToPrimitive(UR, rR, velocity_uR, velocity_vR, pressureR)
         aR = SQRT(gammagp * pressureR / rR)
 
         Select Case (axis)
         Case ('x')
-            l1L = ABS(velocity_uL - aL)
-            l3L = ABS(velocity_uL + aL)
-            l1R = ABS(velocity_uR - aR)
-            l3R = ABS(velocity_uR + aR)
+            velocityL = velocity_uL
+            velocityR = velocity_uR
         Case ('y')
-            l1L = ABS(velocity_vL - aL)
-            l3L = ABS(velocity_vL + aL)
-            l1R = ABS(velocity_vR - aR)
-            l3R = ABS(velocity_vR + aR)
+            velocityL = velocity_vL
+            velocityR = velocity_vR
         Case Default
             Write(STDERR, *) "Unknown axis ", axis
             Call Exit(1)
         End Select
 
-        bL = MAX( l1L, l3L )
-        bR = MAX( l1R, l3R )
+        b_minusL = velocityL - aL
+        b_plusL = velocityL + aL
+        b_minusR = velocityR - aR
+        b_plusR = velocityR + aR
+
+        bL = MAX( ABS(b_minusL), ABS(b_plusL) )
+        bR = MAX( ABS(b_minusR), ABS(b_plusR) )
         b = MAX( bL, bR )
 
         Rusanov = fluxFunc(axis, UL) + fluxFunc(axis, UR)
@@ -89,28 +79,17 @@ Contains
         Character, Intent(In) :: axis ! x,  y
         Real(PR), Dimension(4) :: HLL
         ! --- Locals
-        Real(PR) :: rL, velocity_uL, velocity_vL, velocityL, eL, pressureL, qL, aL, b_minusL, b_plusL
+        Real(PR) :: rL, velocity_uL, velocity_vL, velocityL, pressureL, aL, b_minusL, b_plusL
         Real(PR), Dimension(4) :: fluxL
-        Real(PR) :: rR, velocity_uR, velocity_vR, velocityR, eR, pressureR, qR, aR, b_minusR, b_plusR
+        Real(PR) :: rR, velocity_uR, velocity_vR, velocityR, pressureR, aR, b_minusR, b_plusR
         Real(PR), Dimension(4) :: fluxR
         Real(PR) :: b_minus, b_plus
 
         ! == Left
-        rL = UL(1)
-        velocity_uL = UL(2)/rL
-        velocity_vL = UL(3)/rL
-        eL = UL(4)
-        qL = .5_PR * ( velocity_uL**2 + velocity_vL**2 )
-        pressureL = (gammagp - 1._PR)*(eL - rL*qL)
+        Call conservativeToPrimitive(UL, rL, velocity_uL, velocity_vL, pressureL)
         aL = SQRT(gammagp * pressureL / rL)
-
         ! == Right
-        rR = UR(1)
-        velocity_uR = UR(2)/rR
-        velocity_vR = UR(3)/rR
-        eR = UR(4)
-        qR = .5_PR * ( velocity_uR**2 + velocity_vR**2 )
-        pressureR = (gammagp - 1._PR)*(eR - rR*qR)
+        Call conservativeToPrimitive(UR, rR, velocity_uR, velocity_vR, pressureR)
         aR = SQRT(gammagp * pressureR / rR)
 
         Select Case (axis)
@@ -151,28 +130,17 @@ Contains
         Character, Intent(In) :: axis ! x,  y
         Real(PR), Dimension(4) :: HLLC
         ! --- Locals
-        Real(PR) :: rL, velocity_uL, velocity_vL, velocityL, TvelocityL, eL, pressureL, qL, aL, b_minusL, b_plusL
+        Real(PR) :: rL, velocity_uL, velocity_vL, velocityL, TvelocityL, pressureL, aL, b_minusL, b_plusL
         Real(PR), Dimension(4) :: fluxL, fluxL_star, UL_star
-        Real(PR) :: rR, velocity_uR, velocity_vR, velocityR, TvelocityR, eR, pressureR, qR, aR, b_minusR, b_plusR
+        Real(PR) :: rR, velocity_uR, velocity_vR, velocityR, TvelocityR, pressureR, aR, b_minusR, b_plusR
         Real(PR), Dimension(4) :: fluxR, fluxR_star, UR_star
         Real(PR) :: b_minus, b_star, b_plus
 
         ! == Left
-        rL = UL(1)
-        velocity_uL = UL(2)/rL
-        velocity_vL = UL(3)/rL
-        eL = UL(4)
-        qL = .5_PR * ( velocity_uL**2 + velocity_vL**2 )
-        pressureL = (gammagp - 1._PR)*(eL - rL*qL)
+        Call conservativeToPrimitive(UL, rL, velocity_uL, velocity_vL, pressureL)
         aL = SQRT(gammagp * pressureL / rL)
-
         ! == Right
-        rR = UR(1)
-        velocity_uR = UR(2)/rR
-        velocity_vR = UR(3)/rR
-        eR = UR(4)
-        qR = .5_PR * ( velocity_uR**2 + velocity_vR**2 )
-        pressureR = (gammagp - 1._PR)*(eR - rR*qR)
+        Call conservativeToPrimitive(UR, rR, velocity_uR, velocity_vR, pressureR)
         aR = SQRT(gammagp * pressureR / rR)
 
         Select Case (axis)
@@ -220,7 +188,7 @@ Contains
             Write(STDERR, *) "Unknown axis ", axis
             Call Exit(1)
         End Select
-        UL_star(4) = eL/rL + ( b_star - velocityL ) &
+        UL_star(4) = UL(4)/rL + ( b_star - velocityL ) &
             & * ( b_star + pressureL / ( rL*(b_minus - velocityL) ) )
         UL_star = UL_star * rL &
             & * ( b_minus - velocityL )/( b_minus - b_star )
@@ -237,7 +205,7 @@ Contains
             Write(STDERR, *) "Unknown axis ", axis
             Call Exit(1)
         End Select
-        UR_star(4) = eR/rR + ( b_star - velocityR ) &
+        UR_star(4) = UR(4)/rR + ( b_star - velocityR ) &
             & * ( b_star + pressureR / ( rR*(b_plus - velocityR) ) )
         UR_star = UR_star * rR &
             & * ( b_plus - velocityR )/( b_plus - b_star )
@@ -265,16 +233,12 @@ Contains
         Real(PR), Dimension(4), Intent(In) :: Uvect
         Real(PR), Dimension(4) :: fluxFunc
         ! --- Locals
-        Real(PR) :: r, ru, rv, e, u, v, p, q
+        Real(PR) :: r, ru, rv, e, u, v, p
 
-        r = Uvect(1)
         ru = Uvect(2)
         rv = Uvect(3)
         e = Uvect(4)
-        u = ru/r
-        v = rv/r
-        q = 0.5_PR * ( u**2 + v**2 )
-        p = (gammagp - 1._PR)*(e - r*q)
+        Call conservativeToPrimitive(Uvect, r, u, v, p)
 
         Select Case (axis)
         Case ('x')
@@ -292,5 +256,35 @@ Contains
             Call Exit(1)
         End Select
     End Function fluxFunc
+
+    Subroutine conservativeToPrimitive(Uconservative, rho, u, v, p)
+        ! --- InOut
+        Real(PR), Dimension(4), Intent(In) :: Uconservative
+        Real(PR), Intent(InOut) :: rho, u, v, p
+        ! --- Locals
+        Real(PR) :: e, q
+
+        rho = Uconservative(1)
+        u = Uconservative(2)/rho
+        v = Uconservative(3)/rho
+        e = Uconservative(4)
+        q = .5_PR * rho * ( u**2 + v**2 )
+        p = (gammagp - 1._PR)*(e - q)
+    End Subroutine conservativeToPrimitive
+
+    Subroutine primitiveToConservative(Uprimitive, r, ru, rv, e)
+        ! --- InOut
+        Real(PR), Dimension(4), Intent(In) :: Uprimitive
+        Real(PR), Intent(InOut) :: r, ru, rv, e
+        ! --- Locals
+        Real(PR) :: p, q
+
+        r = Uprimitive(1)
+        ru = r*Uprimitive(2)
+        rv = r*Uprimitive(3)
+        p = Uprimitive(4)
+        q = .5_PR * ( ru**2 + rv**2 ) / r
+        e = p / (gammagp - 1._PR) + q
+    End Subroutine primitiveToConservative
 
 End Module mod_fluxes

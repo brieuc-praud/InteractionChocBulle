@@ -2,8 +2,8 @@ Program main
     Use mod_input
     Use mod_output
 
+    Use mod_cases
     Use mod_fluxes
-    Use mod_quadrature
 
     Implicit None
 
@@ -21,19 +21,20 @@ Program main
 
     ! --- Allocate
     Allocate(x(0:imax), y(0:jmax), xm(imax), ym(jmax))
-    Allocate(Uvect(4,imax,jmax), fluxF(4,0:imax, 0:jmax), fluxG(4,0:imax, 0:jmax))
+    Allocate(Uvect(4,-1:imax+2,-1:jmax+2), fluxF(4,0:imax, 0:jmax), fluxG(4,0:imax, 0:jmax))
+    Allocate(source(4,imax,jmax))
     ! Those arrays can be quite big so they are allocated only if necessary
     If (num_scheme%time_scheme_order >= 2) Then
         ! Strong-Stability preserving Runge-Kutta 2
-        Allocate(K1vect(4,imax,jmax), fluxK1F(4,0:imax, 0:jmax), fluxK1G(4,0:imax, 0:jmax))
-        Allocate(K2vect(4,imax,jmax), fluxK2F(4,0:imax, 0:jmax), fluxK2G(4,0:imax, 0:jmax))
+        Allocate(K1vect(4,-1:imax+2,-1:jmax+2), fluxK1F(4,0:imax, 0:jmax), fluxK1G(4,0:imax, 0:jmax))
+        Allocate(K2vect(4,-1:imax+2,-1:jmax+2), fluxK2F(4,0:imax, 0:jmax), fluxK2G(4,0:imax, 0:jmax))
     End If
     If (num_scheme%time_scheme_order >= 3) Then
         ! Strong-Stability preserving Runge-Kutta 3
-        Allocate(K3vect(4,imax,jmax), fluxK3F(4,0:imax, 0:jmax), fluxK3G(4,0:imax, 0:jmax))
+        Allocate(K3vect(4,-1:imax+2,-1:jmax+2), fluxK3F(4,0:imax, 0:jmax), fluxK3G(4,0:imax, 0:jmax))
     End If
     If (exact_solution_available) Then
-        Allocate(Uvect_e(4,imax,jmax))
+        Allocate(Uvect_e(4,-1:imax+2,-1:jmax+2))
     End If
 
     ! --- Grid construction
@@ -57,10 +58,6 @@ Program main
     nb_iterations = 0
     time = 0._PR
     Do While (time < time_max)
-        Call compute_CFL()
-        deltat = MIN( deltat, time_max - time ) ! Adjust the time step to end at time_max
-        time = time + deltat
-
         Call step()
 
         ! Output a file if the output modulo corresponds OR if it is the last iteration
@@ -84,6 +81,7 @@ Program main
 
     Deallocate(x, y, xm, ym)
     Deallocate(Uvect, fluxF, fluxG)
+    Deallocate(source)
     If (num_scheme%time_scheme_order >= 2) Then
         Deallocate(K1vect)
         Deallocate(K2vect)
@@ -98,6 +96,13 @@ Program main
 Contains
 
     Subroutine step()
+        Call fillGhosts(Uvect)
+
+        Call compute_CFL()
+        deltat = MIN( deltat, time_max - time ) ! Adjust the time step to end at time_max
+        time = time + deltat
+
+        Call getSourceTerm(quadrature_points_number)
         Select Case (num_scheme%time_scheme_order)
         Case (1) ! Explicit Euler
             Call ExplicitEuler(Uvect, Uvect)
@@ -124,93 +129,57 @@ Contains
 
     Subroutine ExplicitEuler(Up, Um)
         ! --- InOut
-        Real(PR), Dimension(:,:,:), Intent(In) :: Um
-        Real(PR), Dimension(:,:,:), Intent(InOut) :: Up
+        Real(PR), Dimension(4,-1:imax+2,-1:jmax+2), Intent(In) :: Um
+        Real(PR), Dimension(4,-1:imax+2,-1:jmax+2), Intent(InOut) :: Up
         ! --- Locals
         Integer :: i, j
 
-        Call compute_Fluxes('x', Um, fluxF)
-        Call compute_Fluxes('y', Um, fluxG)
+        Call compute_Fluxes(Um, fluxF, fluxG)
 
         Do i=1, imax
             Do j=1, jmax
                 Up(:,i,j) = Um(:,i,j) &
                     & - deltat/deltax * (fluxF(:,i,j) - fluxF(:,i-1,j)) &
-                    & - deltat/deltay * (fluxG(:,i,j) - fluxG(:,i,j-1))
+                    & - deltat/deltay * (fluxG(:,i,j) - fluxG(:,i,j-1)) &
+                    & + deltat*source(:,i,j)
             End Do
         End Do
     End Subroutine ExplicitEuler
 
-    Subroutine compute_Fluxes(axis, U, flux)
+    Subroutine compute_Fluxes(U, flux_x, flux_y)
         ! --- InOut
-        Character, Intent(In) :: axis
-        Real(PR), Dimension(:,:,:), Intent(In) :: U
-        Real(PR), Dimension(:,0:,0:), Intent(InOut) :: flux
-        ! --- Locals
-        Real(PR), Dimension(4) :: ULL, UL, UR, URR
+        Real(PR), Dimension(4,-1:imax+2,-1:jmax+2), Intent(In) :: U
+        Real(PR), Dimension(4,0:imax,0:jmax), Intent(InOut) :: flux_x, flux_y
 
-        Select Case (axis)
-        Case ('x')
-            Do j=1, jmax
-                Do i=2, imax-2
-                    flux(:,i,j) = numericalFlux('x', U(:,i-1,j), U(:,i,j), U(:,i+1,j), U(:,i+2,j))
-                End Do
-                ! Boundary
-                Call valuesAtBoundary('x', 0, j, U, ULL, UL, UR, URR);
-                flux(:,0,j) = numericalFlux('x', ULL, UL, UR, URR)
-                Call valuesAtBoundary('x', 1, j, U, ULL, UL, UR, URR);
-                flux(:,1,j) = numericalFlux('x', ULL, UL, UR, URR)
-                Call valuesAtBoundary('x', imax-1, j, U, ULL, UL, UR, URR);
-                flux(:,imax-1,j) = numericalFlux('x', ULL, UL, UR, URR)
-                Call valuesAtBoundary('x', imax, j, U, ULL, UL, UR, URR);
-                flux(:,imax,j) = numericalFlux('x', ULL, UL, UR, URR)
-            End Do
-        Case ('y')
+        Do j=1, jmax
             Do i=1, imax
-                Do j=2, jmax-2
-                    flux(:,i,j) = numericalFlux('y', U(:,i,j-1), U(:,i,j), U(:,i,j+1), U(:,i,j+2))
-                End Do
-                ! Boundary
-                Call valuesAtBoundary('y', i, 0, U, ULL, UL, UR, URR);
-                flux(:,i,0) = numericalFlux('y', ULL, UL, UR, URR)
-                Call valuesAtBoundary('y', i, 1, U, ULL, UL, UR, URR);
-                flux(:,i,1) = numericalFlux('y', ULL, UL, UR, URR)
-                Call valuesAtBoundary('y', i, jmax-1, U, ULL, UL, UR, URR);
-                flux(:,i,jmax-1) = numericalFlux('y', ULL, UL, UR, URR)
-                Call valuesAtBoundary('y', i, jmax, U, ULL, UL, UR, URR);
-                flux(:,i,jmax) = numericalFlux('y', ULL, UL, UR, URR)
+                flux_x(:,i,j) = numericalFlux('x', U(:,i-1,j), U(:,i,j), U(:,i+1,j), U(:,i+2,j))
+                flux_y(:,i,j) = numericalFlux('y', U(:,i,j-1), U(:,i,j), U(:,i,j+1), U(:,i,j+2))
             End Do
-        Case Default
-            Write(STDERR, *) "Unknown axis ", axis
-            Call Exit(1)
-        End Select
+        End Do
+        ! Boundary
+        Do j=1, jmax
+            flux_x(:,0,j) = numericalFlux('x', U(:,-1,j), U(:,0,j), U(:,1,j), U(:,2,j))
+        End Do
+        Do i=1, imax
+            flux_y(:,i,0) = numericalFlux('y', U(:,i,-1), U(:,i,0), U(:,i,1), U(:,i,2))
+        End Do
     End Subroutine
 
     Subroutine compute_CFL()
         ! --- Locals ---
-        Real(PR), Dimension(4) :: ULi, URi, ULL, UL, UR, URR
+        Real(PR), Dimension(4) :: ULi, URi
         Real(PR) :: bx_max, by_max
-        Integer :: i, j, bi
-        Integer, Dimension(4) :: border_indices
+        Integer :: i, j
 
         bx_max = 0._PR
         by_max = 0._PR
 
         ! --- x
         Do j=1, jmax
-            ! Interior
-            Do i=2, imax-2
+            Do i=1, imax
                 Call reconstructAtInterface('x', ULi, URi, &
                     & Uvect(:,i-1,j), Uvect(:,i,j), Uvect(:,i+1,j), Uvect(:,i+2,j) )
-                Call compute_bmax( 'x', ULi, bx_max )
-                Call compute_bmax( 'x', URi, bx_max )
-            End Do
-            ! Boundary
-            border_indices = (/ 0, 1, imax-1, imax /)
-            Do bi=1, Size(border_indices)
-                i = border_indices(bi)
-                Call valuesAtBoundary('x', i, j, Uvect, ULL, UL, UR, URR);
-                Call reconstructAtInterface('x', ULi, URi, ULL, UL, UR, URR)
                 Call compute_bmax( 'x', ULi, bx_max )
                 Call compute_bmax( 'x', URi, bx_max )
             End Do
@@ -218,19 +187,9 @@ Contains
 
         ! --- y
         Do i=1, imax
-            ! Interior
-            Do j=2, jmax-2
+            Do j=1, jmax
                 Call reconstructAtInterface('y', ULi, URi, &
                     & Uvect(:,i,j-1) ,Uvect(:,i,j), Uvect(:,i,j+1), Uvect(:,i,j+2) )
-                Call compute_bmax( 'y', ULi, by_max )
-                Call compute_bmax( 'y', URi, by_max )
-            End Do
-            ! Boundary
-            border_indices = (/ 0, 1, jmax-1, jmax /)
-            Do bi=1, Size(border_indices)
-                j = border_indices(bi)
-                Call valuesAtBoundary('y', i, 0, Uvect, ULL, UL, UR, URR);
-                Call reconstructAtInterface('y', ULi, URi, ULL, UL, UR, URR)
                 Call compute_bmax( 'y', ULi, by_max )
                 Call compute_bmax( 'y', URi, by_max )
             End Do
@@ -297,6 +256,19 @@ Contains
             End Do
         End Do
     End Subroutine getInitState
+
+    Subroutine getSourceTerm(nb_quadrature_points)
+        ! --- InOut
+        Integer, Intent(In) :: nb_quadrature_points
+        ! --- Locals
+        Integer :: i, j
+
+        Do i=1, imax
+            Do j=1, jmax
+                source(:,i,j) = sourceTerm_avg(xm(i), ym(j), time, nb_quadrature_points)
+            End Do
+        End Do
+    End Subroutine getSourceTerm
 
     Function error()
         ! --- InOut

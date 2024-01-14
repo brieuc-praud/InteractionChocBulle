@@ -34,7 +34,7 @@ Contains
         Select Case (TRIM(ADJUSTL(case_name)))
         Case ('ShockBubble')
             exactSolutionAvailable = .False.
-        Case ('IsentropicVortex', 'ShockTube')
+        Case ('Manufactured', 'IsentropicVortex', 'ShockTube')
             exactSolutionAvailable = .True.
         Case Default
             Write(STDERR, *) "Unknown case ", TRIM(ADJUSTL(case_name))
@@ -47,11 +47,14 @@ Contains
         Real(PR), Intent(In) :: x, y
         Real(PR), Dimension(4) :: Uinit
         ! --- Locals
-        Real(PR) :: r, u, v, q, p, e
+        Real(PR) :: r, u, v, p
+        Real(PR) :: rho, ru, rv, e
         Type(vortex_parameters) :: vtx
         Type(shock_tube_parameters) :: st
 
         Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('Manufactured')
+            Call manufactured(x, y, 0._PR, r, u, v, p)
         Case ('ShockBubble')
             If (x < 0._PR) Then
                 ! Left
@@ -98,10 +101,9 @@ Contains
             Call Exit(1)
         End Select
 
-        q = .5_PR * ( u**2 + v**2 )
-        e = p / (gammagp - 1._PR) + r*q
+        Call primitiveToConservative( (/Real(PR) :: r, u, v, p/), rho, ru, rv, e )
 
-        Uinit = (/ Real(PR) :: r, r*u, r*v, e /)
+        Uinit = (/ Real(PR) :: rho, ru, rv, e /)
     End Function Uinit
 
     Function Uexact(x, y, t)
@@ -109,11 +111,14 @@ Contains
         Real(PR), Intent(In) :: x, y, t
         Real(PR), Dimension(4) :: Uexact
         ! --- Locals
-        Real(PR) :: r, u, v, q, p, e
+        Real(PR) :: r, u, v, p
+        Real(PR) :: rho, ru, rv, e
         Type(vortex_parameters) :: vtx
         Type(shock_tube_parameters) :: st
 
         Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('Manufactured')
+            Call manufactured(x, y, t, r, u, v, p)
         Case ('ShockTube')
             Call set_shock_tube_parameters(st, gammagp)
             Call ShockTube(x, t, &
@@ -129,188 +134,122 @@ Contains
             Call Exit(1)
         End Select
 
-        q = .5_PR * ( u**2 + v**2 )
-        e = p / (gammagp - 1._PR) + r*q
+        Call primitiveToConservative( (/Real(PR) :: r, u, v, p/), rho, ru, rv, e )
 
-        Uexact = (/ Real(PR) :: r, r*u, r*v, e /)
+        Uexact = (/ Real(PR) :: rho, ru, rv, e /)
     End Function Uexact
 
-    Subroutine valuesAtBoundary(axis, i, j, Uvect, ULL, UL, UR, URR)
+    Function sourceTerm(x, y, t)
         ! --- InOut
-        Character, Intent(In) :: axis
-        Integer, Intent(In) :: i,j
-        Real(PR), Dimension(:,:,:), Intent(In) :: Uvect
-        Real(PR), Dimension(4), Intent(InOut) :: ULL, UL, UR, URR
+        Real(PR), Intent(In) :: x, y, t
+        Real(PR), Dimension(4) :: sourceTerm
 
         Select Case (TRIM(ADJUSTL(case_name)))
-        Case ('ShockBubble')
-            Select Case (axis)
+        Case ('Manufactured')
+            sourceTerm = manufacturedSourceTerm(x, y, t)
+        Case Default
+            sourceTerm = 0._PR
+        End Select
+    End Function sourceTerm
+
+    Subroutine boundaryFlux(tag, flux, boolean_flag)
+        ! --- InOut
+        Character(len=2), Intent(In) :: tag
+        Real(PR), Dimension(4), Intent(InOut) :: flux
+        Logical, Intent(InOut) :: boolean_flag
+
+        Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('Manufactured', 'ShockBubble', 'ShockTube', 'IsentropicVortex')
+            Select Case (tag)
             Case ('x')
-                ! Inflow
-                If (i == 0) Then
-                    ULL = Uinit(-.1_PR, 0._PR)
-                    UL = Uinit(-.1_PR, 0._PR)
-                    UR = Uvect(:,1,j)
-                    URR = Uvect(:,2,j)
-                Else If (i == 1) Then
-                    ULL = Uinit(-.1_PR, 0._PR)
-                    UL = Uvect(:,1,j)
-                    UR = Uvect(:,2,j)
-                    URR = Uvect(:,3,j)
-                ! Constant extrapolation
-                Else If (i == imax-1) Then
-                    ULL = Uvect(:,imax-2,j)
-                    UL = Uvect(:,imax-1,j)
-                    UR = Uvect(:,imax,j)
-                    URR = Uvect(:,imax,j)
-                Else If (i == imax) Then
-                    ULL = Uvect(:,imax-1,j)
-                    UL = Uvect(:,imax,j)
-                    UR = Uvect(:,imax,j)
-                    URR = Uvect(:,imax,j)
-                Else
-                    Write(STDERR, *) "Invalid index for boundary condition ", i
-                    Call Exit(1)
-                End If
+                flux = 0._PR
             Case ('y')
-                ! Reflecting / Symmetry
-                If (j == 0) Then
-                    UR = Uvect(:,i,1)
-                    URR = Uvect(:,i,2)
-                    UL = UR
-                    UL(3) = -UL(3)
-                    ULL = URR
-                    ULL(3) = -ULL(3)
-                Else If (j == 1) Then
-                    UL = Uvect(:,i,1)
-                    UR = Uvect(:,i,2)
-                    URR = Uvect(:,i,3)
-                    ULL = UL
-                    ULL(3) = -ULL(3)
-                Else If (j == jmax-1) Then
-                    ULL = Uvect(:,i,jmax-2)
-                    UL = Uvect(:,i,jmax-1)
-                    UR = Uvect(:,i,jmax)
-                    URR = UR
-                    URR(3) = -URR(3)
-                Else If (j == jmax) Then
-                    ULL = Uvect(:,i,jmax-1)
-                    UL = Uvect(:,i,jmax)
-                    UR = UL
-                    UR(3) = -UR(3)
-                    URR = ULL
-                    URR(3) = -URR(3)
-                Else
-                    Write(STDERR, *) "Invalid index for boundary condition ", j
-                    Call Exit(1)
-                End If
-            End Select
-        Case ('ShockTube')
-            ! Constant extrapolation
-            Select Case (axis)
-            Case ('x')
-                If (i == 0) Then
-                    ULL = Uvect(:,1,j)
-                    UL = Uvect(:,1,j)
-                    UR = Uvect(:,1,j)
-                    URR = Uvect(:,2,j)
-                Else If (i == 1) Then
-                    ULL = Uvect(:,1,j)
-                    UL = Uvect(:,1,j)
-                    UR = Uvect(:,2,j)
-                    URR = Uvect(:,3,j)
-                Else If (i == imax-1) Then
-                    ULL = Uvect(:,imax-2,j)
-                    UL = Uvect(:,imax-1,j)
-                    UR = Uvect(:,imax,j)
-                    URR = Uvect(:,imax,j)
-                Else If (i == imax) Then
-                    ULL = Uvect(:,imax-1,j)
-                    UL = Uvect(:,imax,j)
-                    UR = Uvect(:,imax,j)
-                    URR = Uvect(:,imax,j)
-                Else
-                    Write(STDERR, *) "Invalid index for boundary condition ", i
-                    Call Exit(1)
-                End If
-            Case ('y')
-                If (j == 0) Then
-                    ULL = Uvect(:,i,1)
-                    UL = Uvect(:,i,1)
-                    UR = Uvect(:,i,1)
-                    URR = Uvect(:,i,2)
-                Else If (j == 1) Then
-                    ULL = Uvect(:,i,1)
-                    UL = Uvect(:,i,1)
-                    UR = Uvect(:,i,2)
-                    URR = Uvect(:,i,3)
-                Else If (j == jmax-1) Then
-                    ULL = Uvect(:,i,jmax-2)
-                    UL = Uvect(:,i,jmax-1)
-                    UR = Uvect(:,i,jmax)
-                    URR = Uvect(:,i,jmax)
-                Else If (j == jmax) Then
-                    ULL = Uvect(:,i,jmax-1)
-                    UL = Uvect(:,i,jmax)
-                    UR = Uvect(:,i,jmax)
-                    URR = Uvect(:,i,jmax)
-                Else
-                    Write(STDERR, *) "Invalid index for boundary condition ", j
-                    Call Exit(1)
-                End If
-            End Select
-        Case ('IsentropicVortex')
-            ! Periodic
-            Select Case (axis)
-            Case ('x')
-                If (i == 0 .OR. i == imax) Then
-                    ULL = Uvect(:,imax-1,j)
-                    UL = Uvect(:,imax,j)
-                    UR = Uvect(:,1,j)
-                    URR = Uvect(:,2,j)
-                Else If (i == 1) Then
-                    ULL = Uvect(:,imax,j)
-                    UL = Uvect(:,1,j)
-                    UR = Uvect(:,2,j)
-                    URR = Uvect(:,3,j)
-                Else If (i == imax-1) Then
-                    ULL = Uvect(:,imax-2,j)
-                    UL = Uvect(:,imax-1,j)
-                    UR = Uvect(:,imax,j)
-                    URR = Uvect(:,1,j)
-                Else
-                    Write(STDERR, *) "Invalid index for boundary condition ", i
-                    Call Exit(1)
-                End If
-            Case ('y')
-                If (j == 0 .OR. j == jmax) Then
-                    ULL = Uvect(:,i,jmax-1)
-                    UL = Uvect(:,i,jmax)
-                    UR = Uvect(:,i,1)
-                    URR = Uvect(:,i,2)
-                Else If (j == 1) Then
-                    ULL = Uvect(:,i,jmax)
-                    UL = Uvect(:,i,1)
-                    UR = Uvect(:,i,2)
-                    URR = Uvect(:,i,3)
-                Else If (j == jmax-1) Then
-                    ULL = Uvect(:,i,jmax-2)
-                    UL = Uvect(:,i,jmax-1)
-                    UR = Uvect(:,i,jmax)
-                    URR = Uvect(:,i,1)
-                Else
-                    Write(STDERR, *) "Invalid index for boundary condition ", j
-                    Call Exit(1)
-                End If
+                flux = 0._PR
             Case Default
-                Write(STDERR, *) "Unknown axis ", axis
+                Write(STDERR, *) "Invalid axis ", tag
                 Call Exit(1)
             End Select
+            boolean_flag = .False. ! Use this flux ? No !
         Case Default
             Write(STDERR, *) "Unknown case ", TRIM(ADJUSTL(case_name))
             Call Exit(1)
         End Select
-    End Subroutine valuesAtBoundary
+    End Subroutine boundaryFlux
+
+    Subroutine fillGhosts(U)
+        ! --- InOut
+        Real(PR), Dimension(4,-1:imax+2,-1:jmax+2), Intent(InOut) :: U
+        ! --- Locals
+        Integer :: i, j
+
+        Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('Manufactured')
+            ! Enforce the solution in the ghosts cells
+            Do j=1,jmax
+                U(:,-1,j) =     Uexact_avg(xm(1)-2._PR*deltax, ym(j), time, quadrature_points_number)
+                U(:,0,j) =      Uexact_avg(xm(1)-deltax, ym(j), time, quadrature_points_number)
+                U(:,imax+1,j) = Uexact_avg(xm(imax)+deltax, ym(j), time, quadrature_points_number)
+                U(:,imax+2,j) = Uexact_avg(xm(imax)+2._PR*deltax, ym(j), time, quadrature_points_number)
+            End Do
+            Do i=1,imax
+                U(:,i,-1) =     Uexact_avg(xm(i), ym(1)-2._PR*deltay, time, quadrature_points_number)
+                U(:,i,0) =      Uexact_avg(xm(i), ym(1)-deltay, time, quadrature_points_number)
+                U(:,i,jmax+1) = Uexact_avg(xm(i), ym(jmax)+deltay, time, quadrature_points_number)
+                U(:,i,jmax+2) = Uexact_avg(xm(i), ym(jmax)+2._PR*deltay, time, quadrature_points_number)
+            End Do
+        Case ('ShockBubble')
+            Do j=1,jmax
+                ! Inflow
+                U(:,-1,j) = Uinit(-.1_PR, 0._PR)
+                U(:,0,j) = Uinit(-.1_PR, 0._PR)
+                ! Linear extrapolation
+                U(:,imax+1,j) = 2._PR*U(:,imax,j) - U(:,imax-1,j)
+                U(:,imax+2,j) = 2._PR*U(:,imax+1,j) - U(:,imax,j)
+            End Do
+            Do i=1,imax
+                ! Reflecting / Symmetry
+                U(:,i,-1) = U(:,i,2)
+                U(3,i,-1) = -U(3,i,-1)
+                U(:,i,0) = U(:,i,1)
+                U(3,i,0) = -U(3,i,0)
+                U(:,i,jmax+1) = U(:,i,jmax)
+                U(3,i,jmax+1) = -U(3,i,jmax+1)
+                U(:,i,jmax+2) = U(:,i,jmax-1)
+                U(3,i,jmax+2) = -U(3,i,jmax+2)
+            End Do
+        Case ('ShockTube')
+            ! Linear extrapolation
+            Do j=1,jmax
+                U(:,0,j) = 2._PR*U(:,1,j) - U(:,2,j)
+                U(:,-1,j) = 2._PR*U(:,0,j) - U(:,1,j)
+                U(:,imax+1,j) = 2._PR*U(:,imax,j) - U(:,imax-1,j)
+                U(:,imax+2,j) = 2._PR*U(:,imax+1,j) - U(:,imax,j)
+            End Do
+            Do i=1,imax
+                U(:,i,0) = 2._PR*U(:,i,1) - U(:,i,2)
+                U(:,i,-1) = 2._PR*U(:,i,0) - U(:,i,1)
+                U(:,i,jmax+1) = 2._PR*U(:,i,jmax) - U(:,i,jmax-1)
+                U(:,i,jmax+2) = 2._PR*U(:,i,jmax+1) - U(:,i,jmax)
+            End Do
+        Case ('IsentropicVortex')
+            ! Periodic
+            Do j=1,jmax
+                U(:,-1,j) = U(:,imax-1,j)
+                U(:,0,j) = U(:,imax,j)
+                U(:,imax+1,j) = U(:,1,j)
+                U(:,imax+2,j) = U(:,2,j)
+            End Do
+            Do i=1,imax
+                U(:,i,-1) = U(:,i,jmax-1)
+                U(:,i,0) = U(:,i,jmax)
+                U(:,i,jmax+1) = U(:,i,1)
+                U(:,i,jmax+2) = U(:,i,2)
+            End Do
+        Case Default
+            Write(STDERR, *) "Unknown case ", TRIM(ADJUSTL(case_name))
+            Call Exit(1)
+        End Select
+    End Subroutine fillGhosts
 
     Subroutine getGridDimensions(xmin, xmax, ymin, ymax)
         ! --- InOut
@@ -320,6 +259,11 @@ Contains
         Type(shock_tube_parameters) :: st
 
         Select Case (TRIM(ADJUSTL(case_name)))
+        Case ('Manufactured')
+            xmin = -5._PR
+            xmax = 5._PR
+            ymin = -5._PR
+            ymax = 5._PR
         Case ('ShockBubble')
             xmin = -.1_PR
             xmax = 1.6_PR
@@ -507,5 +451,174 @@ Contains
         p = vtx%pressure_infty / vtx%gammagp * &
             & ( 1._PR -.5_PR * ( vtx%gammagp - 1._PR ) * disturbance**2 )**(vtx%gammagp / (vtx%gammagp - 1._PR))
     End Subroutine IsentropicVortex
+
+    Subroutine manufactured(x, y, time, r, u, v, p)
+        ! --- InOut
+        Real(PR), Intent(In) :: x, y, time
+        Real(PR), Intent(Out) :: r, u, v, p
+        ! --- Locals
+        Real(PR) :: Lx, Ly, f
+
+        Lx = xmax-xmin
+        Ly = ymax-ymin
+        f = COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + COS(time/time_max)
+
+        r = 2._PR + f
+        u = f
+        v = f
+        p = 2._PR + f
+    End Subroutine manufactured
+
+    Function manufacturedSourceTerm(x, y, t)
+        ! --- InOut
+        Real(PR), Intent(In) :: x, y, t
+        Real(PR), Dimension(4) :: manufacturedSourceTerm
+        ! --- Locals
+        Real(PR) :: Lx, Ly
+
+        Lx = xmax-xmin
+        Ly = ymax-ymin
+
+        ! Expressions obtained from SageMath 9.3
+        manufacturedSourceTerm(1) = -(SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR) &
+            & - (SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR) &
+            & - (SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) - &
+            & (SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) - (COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*SIN(t/time_max)/time_max &
+            & - (COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)))*SIN(t/time_max)/time_max
+        manufacturedSourceTerm(2) = -2._PR*(SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly))) - 2._PR*(SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly))) - (SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) &
+            & + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2 - (SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2 - 2._PR*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)))*SIN(t/time_max)/time_max - (COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)))**2*SIN(t/time_max)/time_max - SIN(t/time_max)/time_max - SIN(x/Lx)/Lx - SIN(y/Ly)/Ly &
+            & - x*SIN(x*y/(Lx*Ly))/(Lx*Ly) - y*SIN(x*y/(Lx*Ly))/(Lx*Ly)
+        manufacturedSourceTerm(3) = -2._PR*(SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) &
+            & + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) &
+            & - 2._PR*(SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) - (SIN(x/Lx)/Lx &
+            & + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2 - (SIN(y/Ly)/Ly &
+            & + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2 &
+            & - 2._PR*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)))*SIN(t/time_max)/time_max - (COS(t/time_max) + COS(x/Lx) &
+            & + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2*SIN(t/time_max)/time_max
+        manufacturedSourceTerm(4) = -((COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2 + (COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)) + 2._PR)/(gammagp - 1._PR) + COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)) + 2._PR)*(SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly)) - ((COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)))**2 + (COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)/(gammagp - 1._PR) &
+            & + COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(SIN(y/Ly)/Ly &
+            & + x*SIN(x*y/(Lx*Ly))/(Lx*Ly)) - (2._PR*(SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) &
+            & + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) + (SIN(x/Lx)/Lx &
+            & + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2 &
+            & + (SIN(x/Lx)/Lx + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))/(gammagp - 1._PR) + SIN(x/Lx)/Lx &
+            & + y*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) - (2._PR*(SIN(y/Ly)/Ly &
+            & + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) + (SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) &
+            & + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)))**2 + (SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))/(gammagp - 1._PR) &
+            & + SIN(y/Ly)/Ly + x*SIN(x*y/(Lx*Ly))/(Lx*Ly))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) &
+            & - (2._PR*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) &
+            & + COS(y/Ly) + COS(x*y/(Lx*Ly)))*SIN(t/time_max)/time_max + (COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            & + COS(x*y/(Lx*Ly)))**2*SIN(t/time_max)/time_max + SIN(t/time_max)/time_max &
+            & + SIN(t/time_max)/((gammagp - 1._PR)*time_max))*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly))) &
+            & - ((COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*(COS(t/time_max) + COS(x/Lx) + COS(y/Ly) &
+            &  + COS(x*y/(Lx*Ly)))**2 + (COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)/(gammagp - 1._PR) &
+            & + COS(t/time_max) + COS(x/Lx) + COS(y/Ly) + COS(x*y/(Lx*Ly)) + 2._PR)*SIN(t/time_max)/time_max
+    End Function manufacturedSourceTerm
+
+    ! ======= Quadratures ==========
+    Function Uexact_avg(x, y, t, nb_quadrature_points)
+        ! --- InOut
+        Real(PR), Intent(In) :: x, y, t
+        Integer, Intent(In) :: nb_quadrature_points
+        Real(PR), Dimension(4) :: Uexact_avg
+        ! --- Locals
+        Real(PR) :: p, px, py
+
+        Select Case (nb_quadrature_points)
+        Case (1)
+            Uexact_avg = Uexact(x, y, t)
+        Case (4)
+            p = SQRT(3._PR)/3._PR
+            px = p*deltax
+            py = p*deltay
+            Uexact_avg = Uexact(x-px , y-py, t)
+            Uexact_avg = Uexact_avg + Uexact(x-px , y+py, t)
+            Uexact_avg = Uexact_avg + Uexact(x+px , y-py, t)
+            Uexact_avg = Uexact_avg + Uexact(x+px , y+py, t)
+        Case Default
+            Write(STDERR, *) "No quadrature formula available with ", nb_quadrature_points, " points"
+            Call Exit(1)
+        End Select
+
+        Uexact_avg = Uexact_avg/Real(nb_quadrature_points, PR)
+
+    End Function Uexact_avg
+
+    Function Uinit_avg(x, y, nb_quadrature_points)
+        ! --- InOut
+        Real(PR), Intent(In) :: x, y
+        Integer, Intent(In) :: nb_quadrature_points
+        Real(PR), Dimension(4) :: Uinit_avg
+        ! --- Locals
+        Real(PR) :: p, px, py
+
+        Select Case (nb_quadrature_points)
+        Case (1)
+            Uinit_avg = Uinit(x, y)
+        Case (4)
+            p = SQRT(3._PR)/3._PR
+            px = p*deltax
+            py = p*deltay
+            Uinit_avg = Uinit(x-px , y-py)
+            Uinit_avg = Uinit_avg + Uinit(x-px , y+py)
+            Uinit_avg = Uinit_avg + Uinit(x+px , y-py)
+            Uinit_avg = Uinit_avg + Uinit(x+px , y+py)
+        Case Default
+            Write(STDERR, *) "No quadrature formula available with ", nb_quadrature_points, " points"
+            Call Exit(1)
+        End Select
+
+        Uinit_avg = Uinit_avg/Real(nb_quadrature_points, PR)
+
+    End Function Uinit_avg
+
+    Function sourceTerm_avg(x, y, t, nb_quadrature_points)
+        ! --- InOut
+        Real(PR), Intent(In) :: x, y, t
+        Integer, Intent(In) :: nb_quadrature_points
+        Real(PR), Dimension(4) :: sourceTerm_avg
+        ! --- Locals
+        Real(PR) :: p, px, py
+
+        Select Case (nb_quadrature_points)
+        Case (1)
+            sourceTerm_avg = sourceTerm(x, y, t)
+        Case (4)
+            p = SQRT(3._PR)/3._PR
+            px = p*deltax
+            py = p*deltay
+            sourceTerm_avg = sourceTerm(x-px , y-py, t)
+            sourceTerm_avg = sourceTerm_avg + sourceTerm(x-px , y+py, t)
+            sourceTerm_avg = sourceTerm_avg + sourceTerm(x+px , y-py, t)
+            sourceTerm_avg = sourceTerm_avg + sourceTerm(x+px , y+py, t)
+        Case Default
+            Write(STDERR, *) "No quadrature formula available with ", nb_quadrature_points, " points"
+            Call Exit(1)
+        End Select
+
+        sourceTerm_avg = sourceTerm_avg/Real(nb_quadrature_points, PR)
+
+    End Function sourceTerm_avg
 
 End Module mod_cases

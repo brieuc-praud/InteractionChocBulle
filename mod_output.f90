@@ -7,7 +7,7 @@ Module mod_output
 Contains
     Subroutine output(U, nb_filename, filename_prefix)
         !--- InOut
-        Real(PR), Dimension(4,imax,jmax) :: U
+        Real(PR), Dimension(4,-1:imax+2,-1:jmax+2) :: U
         Integer, Intent(In) :: nb_filename
         Character(len=*), Intent(In) :: filename_prefix
         !--- Locals
@@ -15,10 +15,10 @@ Contains
         Character(len=30) :: filename
         Real(PR), Dimension(imax,jmax) :: density, velocity_u, velocity_v, energy, q, pressure
 
-        density = U(1,:,:)
-        velocity_u = U(2,:,:) / density
-        velocity_v = U(3,:,:) / density
-        energy = U(4,:,:)
+        density = U(1,1:imax,1:jmax)
+        velocity_u = U(2,1:imax,1:jmax) / density
+        velocity_v = U(3,1:imax,1:jmax) / density
+        energy = U(4,1:imax,1:jmax)
 
         q = .5_PR * ( velocity_u**2 + velocity_v**2 )
         pressure = (gammagp - 1._PR)*(energy - density*q)

@@ -119,7 +119,6 @@ Contains
             ! Third stage
             Call fillGhosts(K2vect)
             Call compute_CFL()
-            deltat = .5_PR * deltat
             Call ExplicitEuler(K3vect, K2vect)
             Uvect = 1._PR/3._PR * Uvect + 2._PR/3._PR * K3vect
         Case Default

@@ -2,7 +2,7 @@ number_cells_x 1700
 number_cells_y 500
 time_max .4
 error_norm L1
-output_modulo -1
+output_modulo 50
 
 case ShockBubble # Manufactured, IsentropicVortex, ShockTube, ShockBubble
 adiabatic_index 1.4
@@ -10,9 +10,9 @@ adiabatic_index 1.4
 # --- Numerics ---
 CFL 0.5
 
-time_scheme_order 2 # 1: EE, 2: SSP-RK2, 3: SSP-RK3
+time_scheme_order 3 # 1: EE, 2: SSP-RK2, 3: SSP-RK3
 
 flux HLL # Rusanov, HLL, HLLC
-space_scheme_order 2 # 1, 2, 3 (MUSCL)
-MUSCL_limiter vanLeer
+space_scheme_order 3 # 1, 2, 3 (MUSCL)
+MUSCL_limiter minmod
 generalised_minmod_parameter 1. # between 1. and 2.

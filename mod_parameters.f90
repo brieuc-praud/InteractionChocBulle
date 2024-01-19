@@ -22,6 +22,7 @@ Module mod_parameters
    Real(PR) :: time_max, cfl, gammagp
    Integer :: imax, jmax, output_modulo
    Character(len=20) :: case_name, norm_str
+   Character(len=100) :: output_file
    Type(numerical_scheme) :: num_scheme
    ! Arrays
    Real(PR), Dimension(:,:,:), Allocatable :: Uvect, Uvect_e, K1vect, K2vect, K3vect

@@ -22,11 +22,9 @@ clean:
 	make clear
 	rm -f *.o $(EXE)
 clear:
-	rm -f *.mod error.dat output/*
+	rm -f *.mod error.dat
 
 exe: $(EXE)
-	rm -f output/*
-	mkdir -p output
 	./$(EXE) $(PARAMS)
 
 run:

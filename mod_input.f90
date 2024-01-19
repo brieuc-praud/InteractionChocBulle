@@ -53,6 +53,8 @@ Contains
                     Read(buffer, *, IOstat=ios) num_scheme%MUSCL_limiter
                 Case ('generalised_minmod_parameter')
                     Read(buffer, *, IOstat=ios) num_scheme%MUSCL_generalised_minmod_parameter
+                Case ('output_file')
+                    Read(buffer, *, IOstat=ios) output_file
                 Case ('','#')
                     ! Do nothing if it is an empty line or a comment
                 Case Default

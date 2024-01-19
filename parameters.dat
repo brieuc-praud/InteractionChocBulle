@@ -7,6 +7,8 @@ output_modulo 50
 case ShockBubble # Manufactured, IsentropicVortex, ShockTube, ShockBubble
 adiabatic_index 1.4
 
+output_file "/mnt/d/tmp/"
+
 # --- Numerics ---
 CFL 0.5
 

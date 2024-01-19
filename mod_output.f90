@@ -24,7 +24,7 @@ Contains
         pressure = (gammagp - 1._PR)*(energy - density*q)
 
         Write(filename,*) nb_filename
-        Open(Unit=111, File="output/"//TRIM(ADJUSTL(filename_prefix))//"_"//TRIM(ADJUSTL(filename))//".vtk")
+        Open(Unit=111, File=TRIM(ADJUSTL(output_file))//TRIM(ADJUSTL(filename_prefix))//"_"//TRIM(ADJUSTL(filename))//".vtk")
 
         Write(111,"(a)") "# vtk DataFile Version 2.0"
         Write(111,"(a)") "Euler Equations"

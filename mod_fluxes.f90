@@ -199,8 +199,8 @@ Contains
             UR_star(2) = b_star
             UR_star(3) = TvelocityR
         Case ('y')
-            UR_star(3) = b_star
             UR_star(2) = TvelocityR
+            UR_star(3) = b_star
         Case Default
             Write(STDERR, *) "Unknown axis ", axis
             Call Exit(1)
@@ -210,14 +210,13 @@ Contains
         UR_star = UR_star * rR &
             & * ( b_plus - velocityR )/( b_plus - b_star )
 
-        fluxL_star = fluxL + b_minus * ( UL_star - UL )
-        fluxR_star = fluxR + b_plus * ( UR_star - UR )
-
         If ( b_minus >= 0._PR ) Then
             HLLC = fluxL
         Else If ( b_star >= 0._PR ) Then
+            fluxL_star = fluxL + b_minus * ( UL_star - UL )
             HLLC = fluxL_star
         Else If ( b_plus >= 0._PR ) Then
+            fluxR_star = fluxR + b_plus * ( UR_star - UR )
             HLLC = fluxR_star
         Else
             HLLC = fluxR
@@ -256,35 +255,5 @@ Contains
             Call Exit(1)
         End Select
     End Function fluxFunc
-
-    Subroutine conservativeToPrimitive(Uconservative, rho, u, v, p)
-        ! --- InOut
-        Real(PR), Dimension(4), Intent(In) :: Uconservative
-        Real(PR), Intent(InOut) :: rho, u, v, p
-        ! --- Locals
-        Real(PR) :: e, q
-
-        rho = Uconservative(1)
-        u = Uconservative(2)/rho
-        v = Uconservative(3)/rho
-        e = Uconservative(4)
-        q = .5_PR * rho * ( u**2 + v**2 )
-        p = (gammagp - 1._PR)*(e - q)
-    End Subroutine conservativeToPrimitive
-
-    Subroutine primitiveToConservative(Uprimitive, r, ru, rv, e)
-        ! --- InOut
-        Real(PR), Dimension(4), Intent(In) :: Uprimitive
-        Real(PR), Intent(InOut) :: r, ru, rv, e
-        ! --- Locals
-        Real(PR) :: p, q
-
-        r = Uprimitive(1)
-        ru = r*Uprimitive(2)
-        rv = r*Uprimitive(3)
-        p = Uprimitive(4)
-        q = .5_PR * ( ru**2 + rv**2 ) / r
-        e = p / (gammagp - 1._PR) + q
-    End Subroutine primitiveToConservative
 
 End Module mod_fluxes

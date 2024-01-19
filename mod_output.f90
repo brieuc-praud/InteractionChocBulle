@@ -30,7 +30,7 @@ Contains
         Write(111,"(a)") "Euler Equations"
         Write(111,"(a)") "ASCII"
         Write(111,"(a)") "DATASET RECTILINEAR_GRID"
-        Write(111,"(1a10,3i4)") "DIMENSIONS ",imax+1,jmax+1,1
+        Write(111,"(1a10,3i5)") "DIMENSIONS ",imax+1,jmax+1,1
         Write(111,Fmt="(1a13,1i10,1a10)") "X_COORDINATES",imax+1," float"
         Do i=0,imax
             Write(111,*) x(i)

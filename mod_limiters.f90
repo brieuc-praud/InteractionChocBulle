@@ -5,10 +5,10 @@ Module mod_limiters
 
 Contains
 
-    Subroutine reconstructAtInterface(axis, ULi, URi, ULL, UL, UR, URR)
+    Subroutine reconstructAtInterface(axis, ULi, URi, ULLc, ULc, URc, URRc)
         ! --- InOut
         Character, Intent(In) :: axis
-        Real(PR), Dimension(4), Intent(In) :: ULL, UL, UR, URR
+        Real(PR), Dimension(4), Intent(In) :: ULLc, ULc, URc, URRc
         Real(PR), Dimension(4), Intent(InOut) :: ULi, URi ! approximations at the interface
         ! --- Parameters
         Real(PR), Parameter :: eps = 1.e0_PR*EPSILON(Real(PR)) !to avoid division by 0. when computing the smoothness
@@ -16,57 +16,21 @@ Contains
         Real(PR), Dimension(4) :: dUL, dUR 
         Real(PR), Dimension(4) :: smoothnessL, limiterL
         Real(PR), Dimension(4) :: smoothnessR, limiterR
-        Real(PR) :: momentum
+        Real(PR), Dimension(4) :: ULL, UL, UR, URR, ULip, URip
+
+        Call conservativeToPrimitive(ULLc, ULL(1), ULL(2), ULL(3), ULL(4))
+        Call conservativeToPrimitive(ULc, UL(1), UL(2), UL(3), UL(4))
+        Call conservativeToPrimitive(URc, UR(1), UR(2), UR(3), UR(4))
+        Call conservativeToPrimitive(URRc, URR(1), URR(2), URR(3), URR(4))
 
         Select Case (num_scheme%space_scheme_order)
         Case (1) ! No reconstruction to do for the first order
-            ULi = UL
-            URi = UR
-        Case (2) ! Second order TVD-MUSCL : linear reconstruction
+            ULip = UL
+            URip = UR
+        Case (2,3) ! Second order TVD-MUSCL : linear reconstruction
             ! local smoothness measure
             smoothnessL = ( UL - ULL + SIGN(eps, UL-ULL)) / ( UR - UL + SIGN(eps, UR-UL))
             smoothnessR = ( UR - UL + SIGN(eps, UR-UL)) / ( URR - UR + SIGN(eps, URR-UR))
-
-            Select Case (axis)
-            Case ('x')
-                momentum = UL(2)
-            Case ('y')
-                momentum = UL(3)
-            Case Default
-                Write(STDERR, *) "Unknown axis ", axis
-                Call Exit(1)
-            End Select
-
-            !Select Case (space_scheme_specs%slope_str)
-            !Case ('left')
-            !    dUL = .5_PR * ( UL - ULL )
-            !    dUR = .5_PR * ( UR - UL )
-            !Case ('right')
-            !    dUL = .5_PR * ( UR - UL )
-            !    dUR = .5_PR * ( URR - UR )
-            !Case ('upwind')
-            !    If ( momentum >= 0._PR ) Then
-            !        dUL = .5_PR * ( UL - ULL )
-            !        dUR = .5_PR * ( UR - UL )
-            !    Else
-            !        dUL = .5_PR * ( UR - UL )
-            !        dUR = .5_PR * ( URR - UR )
-            !    End If
-            !Case ('downwind')
-            !    If ( momentum >= 0._PR ) Then
-            !        dUL = .5_PR * ( UR - UL )
-            !        dUR = .5_PR * ( URR - UR )
-            !    Else
-            !        dUL = .5_PR * ( UL - ULL )
-            !        dUR = .5_PR * ( UR - UL )
-            !    End If
-            !Case ('centered')
-            !    dUL = .25_PR * ( UR - ULL )
-            !    dUR = .25_PR * ( URR - UL )
-            !Case Default
-            !    Write(STDERR,*) "Unknown slope ", space_scheme_specs%slope_str
-            !    Call Exit(1)
-            !End Select
 
             ! Centered slope
             dUL = .25_PR * ( UR - ULL )
@@ -91,21 +55,25 @@ Contains
             Case ('genminmod')
                 limiterL = generalisedMinmod(smoothnessL, num_scheme%MUSCL_generalised_minmod_parameter)
                 limiterR = generalisedMinmod(smoothnessR, num_scheme%MUSCL_generalised_minmod_parameter)
-            Case ('order3')
-                limiterL = limiter_order3(smoothnessL)
-                limiterR = limiter_order3(1._PR/smoothnessR)
+            Case ('O3')
+                limiterL = limiter_O3(smoothnessL)
+                limiterR = limiter_O3(smoothnessR)
             Case Default
                 Write(STDERR,*) "Unknown limiter ", num_scheme%MUSCL_limiter
                 Call Exit(1)
             End Select
 
-            ULi = UL + limiterL*dUL
-            URi = UR - limiterR*dUR
+            ULip = UL + limiterL*dUL
+            URip = UR - limiterR*dUR
 
         Case Default
             Write(STDERR, *) "Order greater than 2 not available (Order", num_scheme%space_scheme_order, "specified)"
             Call Exit(1)
         End Select
+
+        Call primitiveToConservative(ULip, ULi(1), ULi(2), ULi(3), ULi(4))
+        Call primitiveToConservative(URip, URi(1), URi(2), URi(3), URi(4))
+
     End Subroutine reconstructAtInterface
 
     Function minmod(smoothness)
@@ -113,7 +81,7 @@ Contains
         Real(PR), Dimension(4), Intent(In) :: smoothness
         Real(PR), Dimension(4) :: minmod
 
-         minmod = MAX( 0._PR, MIN(1._PR, smoothness) )
+        minmod = MAX( 0._PR, MIN(1._PR, smoothness) )
     End Function minmod
 
     Function vanLeer(smoothness)
@@ -152,14 +120,14 @@ Contains
             & )
     End Function generalisedMinmod
 
-    Function limiter_order3(smoothness)
+    Function limiter_O3(smoothness)
         ! --- InOut
         Real(PR), Dimension(4), Intent(In) :: smoothness
-        Real(PR), Dimension(4) :: limiter_order3
+        Real(PR), Dimension(4) :: limiter_O3
 
-        limiter_order3 = MAX(0._PR, MIN((2._PR+smoothness)/3._PR, &
+        limiter_O3 = MAX(0._PR, MIN((2._PR+smoothness)/3._PR, &
             & MAX(-.5_PR*smoothness, MIN(2._PR*smoothness, (2._PR+smoothness)/3._PR, 1.6_PR)) &
             & ))
-    End Function limiter_order3
+    End Function limiter_O3
 
 End Module mod_limiters

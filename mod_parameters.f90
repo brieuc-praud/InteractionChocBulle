@@ -35,4 +35,35 @@ Module mod_parameters
 
 Contains
 
+    Subroutine conservativeToPrimitive(Uconservative, rho, u, v, p)
+        ! --- InOut
+        Real(PR), Dimension(4), Intent(In) :: Uconservative
+        Real(PR), Intent(InOut) :: rho, u, v, p
+        ! --- Locals
+        Real(PR) :: e, q
+
+        rho = Uconservative(1)
+        u = Uconservative(2)/rho
+        v = Uconservative(3)/rho
+        e = Uconservative(4)
+        q = .5_PR * rho * ( u**2 + v**2 )
+        p = (gammagp - 1._PR)*(e - q)
+    End Subroutine conservativeToPrimitive
+
+    Subroutine primitiveToConservative(Uprimitive, r, ru, rv, e)
+        ! --- InOut
+        Real(PR), Dimension(4), Intent(In) :: Uprimitive
+        Real(PR), Intent(InOut) :: r, ru, rv, e
+        ! --- Locals
+        Real(PR) :: p, q
+
+        r = Uprimitive(1)
+        ru = r*Uprimitive(2)
+        rv = r*Uprimitive(3)
+        p = Uprimitive(4)
+        q = .5_PR * ( ru**2 + rv**2 ) / r
+        e = p / (gammagp - 1._PR) + q
+    End Subroutine primitiveToConservative
+
+
 End Module mod_parameters

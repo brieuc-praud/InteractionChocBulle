@@ -22,7 +22,6 @@ Program main
     ! --- Allocate
     Allocate(x(0:imax), y(0:jmax), xm(imax), ym(jmax))
     Allocate(Uvect(4,-1:imax+2,-1:jmax+2), fluxF(4,0:imax, 0:jmax), fluxG(4,0:imax, 0:jmax))
-    Allocate(source(4,imax,jmax))
     ! Those arrays can be quite big so they are allocated only if necessary
     If (num_scheme%time_scheme_order >= 2) Then
         ! Strong-Stability preserving Runge-Kutta 2
@@ -49,10 +48,8 @@ Program main
     Call getInitState(quadrature_points_number)
 
     ! Output initial state
-    If ( output_modulo > 0 ) Then
-        Call output(Uvect, 0, 'sol')
-        Call output(Uvect, 0, 'exact')
-    End If
+    Call output(Uvect, 0, 'sol')
+    Call output(Uvect, 0, 'exact')
 
     ! Time loop
     nb_iterations = 0
@@ -68,9 +65,9 @@ Program main
 
             If ( exact_solution_available ) Then
                 Call getExactSolution(quadrature_points_number)
-                Call output(Uvect_e, nb_iterations / output_modulo + 1, 'exact')
+                Call output(Uvect_e, nb_iterations / ABS(output_modulo) + 1, 'exact')
             End If
-            Call output(Uvect, nb_iterations / output_modulo + 1, 'sol')
+            Call output(Uvect, nb_iterations / ABS(output_modulo) + 1, 'sol')
         End If
         nb_iterations = nb_iterations + 1
     End Do
@@ -81,7 +78,6 @@ Program main
 
     Deallocate(x, y, xm, ym)
     Deallocate(Uvect, fluxF, fluxG)
-    Deallocate(source)
     If (num_scheme%time_scheme_order >= 2) Then
         Deallocate(K1vect)
         Deallocate(K2vect)
@@ -97,28 +93,33 @@ Contains
 
     Subroutine step()
         Call fillGhosts(Uvect)
-
         Call compute_CFL()
         deltat = MIN( deltat, time_max - time ) ! Adjust the time step to end at time_max
         time = time + deltat
 
-        Call getSourceTerm(quadrature_points_number)
         Select Case (num_scheme%time_scheme_order)
         Case (1) ! Explicit Euler
             Call ExplicitEuler(Uvect, Uvect)
-        Case (2) ! Strong-Stability preserving Runge-Kutta 2
+        Case (2) ! Strong-Stability Preserving Runge-Kutta 2
             ! First stage
             Call ExplicitEuler(K1vect, Uvect)
             ! Second stage
+            Call fillGhosts(K1vect)
+            Call compute_CFL()
             Call ExplicitEuler(K2vect, K1vect)
             Uvect = .5_PR * Uvect + .5_PR * K2vect
-        Case (3) ! Strong-Stability preserving Runge-Kutta 3
+        Case (3) ! Strong-Stability Preserving Runge-Kutta 3
             ! First stage
             Call ExplicitEuler(K1vect, Uvect)
             ! Second stage
+            Call fillGhosts(K1vect)
+            Call compute_CFL()
             Call ExplicitEuler(K2vect, K1vect)
             K2vect = .75_PR * Uvect + .25_PR * K2vect
             ! Third stage
+            Call fillGhosts(K2vect)
+            Call compute_CFL()
+            deltat = .5_PR * deltat
             Call ExplicitEuler(K3vect, K2vect)
             Uvect = 1._PR/3._PR * Uvect + 2._PR/3._PR * K3vect
         Case Default
@@ -140,8 +141,7 @@ Contains
             Do j=1, jmax
                 Up(:,i,j) = Um(:,i,j) &
                     & - deltat/deltax * (fluxF(:,i,j) - fluxF(:,i-1,j)) &
-                    & - deltat/deltay * (fluxG(:,i,j) - fluxG(:,i,j-1)) &
-                    & + deltat*source(:,i,j)
+                    & - deltat/deltay * (fluxG(:,i,j) - fluxG(:,i,j-1))! &
             End Do
         End Do
     End Subroutine ExplicitEuler
@@ -253,22 +253,10 @@ Contains
         Do i=1, imax
             Do j=1, jmax
                 Uvect(:,i,j) = Uinit_avg(xm(i), ym(j), nb_quadrature_points)
+                !Uvect(:,i,j) = Uinit(xm(i), ym(j))
             End Do
         End Do
     End Subroutine getInitState
-
-    Subroutine getSourceTerm(nb_quadrature_points)
-        ! --- InOut
-        Integer, Intent(In) :: nb_quadrature_points
-        ! --- Locals
-        Integer :: i, j
-
-        Do i=1, imax
-            Do j=1, jmax
-                source(:,i,j) = sourceTerm_avg(xm(i), ym(j), time, nb_quadrature_points)
-            End Do
-        End Do
-    End Subroutine getSourceTerm
 
     Function error()
         ! --- InOut

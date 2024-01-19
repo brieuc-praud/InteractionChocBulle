@@ -11,31 +11,37 @@ PARAMS=parameters.dat
 ERRFILE=error.dat
 # $1 is the name of the executable
 EXE="$1"
+# $1 is the name of the parameters file
+PARAMS="$2"
 
 # Starting point for convergence analysis
-REFNx=50
-REFNy=50
-REFCFL=0.25
-PWRbasis=1.1
-REFtmax=10
+REFNx=100
+REFNy=100
+REFCFL=0.5
+PWRbasis=1.3
+REFtmax=10.
 # Number of points for the convergence analysis
 NMAX=5
 
 # Get the line of each parameter
-NNx=$(cat -n $PARAMS | grep "Nx" | cut -f 1)
-NNy=$(cat -n $PARAMS | grep "Ny" | cut -f 1)
+NNx=$(cat -n $PARAMS | grep "number_cells_x" | cut -f 1)
+NNy=$(cat -n $PARAMS | grep "number_cells_y" | cut -f 1)
 NCFL=$(cat -n $PARAMS | grep "CFL" | cut -f 1)
-Ntmax=$(cat -n $PARAMS | grep "tmax" | cut -f 1)
+Ntmax=$(cat -n $PARAMS | grep "time_max" | cut -f 1)
 NOutputMod=$(cat -n $PARAMS | grep "output_modulo" | cut -f 1)
+Ncase=$(cat -n $PARAMS | grep "case" | cut -f 1)
 # Macro to change the parameters of interest
 changeParameters()
 {
-    awk "NR == $NNx { print \"Nx\", $1 }\
-         NR == $NNy { print \"Ny\", $2 }\
+    awk "NR == $NNx { print \"number_cells_x\", $1 }\
+         NR == $NNy { print \"number_cells_y\", $2 }\
          NR == $NCFL { print \"CFL\", $3 }\
-         NR == $Ntmax { print \"tmax\", $4 }\
+         NR == $Ntmax { print \"time_max\", $4 }\
          NR == $NOutputMod { print \"output_modulo\", $5 }\
-         NR != $NNx && NR != $NNy && NR != $NCFL && NR != $Ntmax && NR != $NOutputMod { print \$0 }" $PARAMS > tmp.txt
+         NR == $Ncase { print \"case\", \"$6\" }\
+         NR != $NNx && NR != $NNy && NR != $NCFL\
+         && NR != $Ntmax && NR != $NOutputMod && NR != $Ncase\
+         { print \$0 }" $PARAMS > tmp.txt
     mv tmp.txt $PARAMS
 }
 
@@ -55,14 +61,16 @@ do
     Nx=${Nx%.*} #Conversion to an integer
     Ny=$(echo "$REFNy * $PWRbasis^($i-1)" | bc -l)
     Ny=${Ny%.*}
-    CFL=0.25 #$(echo "$REFCFL / $PWRbasis^($i-1)" | bc -l)
+    CFL=$REFCFL #$(echo "$REFCFL / $PWRbasis^($i-1)" | bc -l)
     OutputMod=-1
+    case="IsentropicVortex"
 
     dx=$(echo "1./$Nx" | bc -l)
 
-    changeParameters $Nx $Ny $CFL $REFtmax $OutputMod
+    changeParameters $Nx $Ny $CFL $REFtmax $OutputMod $case
 
-    output=$(exec "./$EXE")
+    cmd=$(echo "./$EXE ./$PARAMS")
+    output=$(exec $cmd)
     dx=$(echo "$output" | tail -n 1 | cut -d':' -f2 | cut -d',' -f1 | xargs)
     err=$(echo "$output" | tail -n 1 | cut -d':' -f3 | xargs)
 

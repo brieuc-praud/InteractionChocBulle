@@ -1,20 +1,20 @@
-number_cells_x 1700
-number_cells_y 500
+number_cells_x 480
+number_cells_y 200
 time_max .4
-error_norm L1
-output_modulo 50
+error_norm Linfty #L1, L2, Linfty
+output_modulo 100
 
-case ShockBubble # Manufactured, IsentropicVortex, ShockTube, ShockBubble
-adiabatic_index 1.4
+case ShockBubble # IsentropicVortex, ShockTube, ShockBubble
+adiabatic_index 1.66666666
 
 output_file "/mnt/d/tmp/"
 
 # --- Numerics ---
-CFL 0.5
+CFL 0.2
 
 time_scheme_order 3 # 1: EE, 2: SSP-RK2, 3: SSP-RK3
 
-flux HLL # Rusanov, HLL, HLLC
+flux HLLC # Rusanov, HLL, HLLC
 space_scheme_order 3 # 1, 2, 3 (MUSCL)
-MUSCL_limiter minmod
+MUSCL_limiter vanLeer # None, minmod, vanLeer, superbee, UMIST, genminmod
 generalised_minmod_parameter 1. # between 1. and 2.

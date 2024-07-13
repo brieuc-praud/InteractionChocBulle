@@ -12,7 +12,7 @@ Contains
         Real(PR), Dimension(4), Intent(InOut) :: ULi, URi ! approximations at the interface
         ! --- Parameters
         Real(PR), Parameter :: eps = 1.e0_PR*EPSILON(Real(PR)) !to avoid division by 0. when computing the smoothness
-        Real(PR), Parameter :: radiusO3 = 1.e-1
+        Real(PR), Parameter :: radiusO3 = 1.e0
         ! --- Locals
         Real(PR), Dimension(4) :: dUL, dUR 
         Real(PR), Dimension(4) :: smoothnessL, limiterL
@@ -30,9 +30,8 @@ Contains
         smoothnessL = ( UL - ULL + SIGN(eps, UL-ULL)) / ( UR - UL + SIGN(eps, UR-UL))
         smoothnessR = ( UR - UL + SIGN(eps, UR-UL)) / ( URR - UR + SIGN(eps, URR-UR))
 
-        ! Centered slope
-        dUL = .25_PR * ( UR - ULL )
-        dUR = .25_PR * ( URR - UL )
+        dUL = UR - UL
+        dUR = URR - UR
 
         Select Case (num_scheme%space_scheme_order)
         Case (1) ! No reconstruction to do for the first order
@@ -63,8 +62,8 @@ Contains
                 Call Exit(1)
             End Select
 
-            ULip = UL + limiterL*dUL
-            URip = UR - limiterR*dUR
+            ULip = UL + .5_PR*limiterL*dUL
+            URip = UR - .5_PR*limiterR*dUR
         Case (3) ! LimO3
             Select Case (axis)
             Case ('x')

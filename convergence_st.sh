@@ -15,13 +15,13 @@ EXE="$1"
 PARAMS="$2"
 
 # Starting point for convergence analysis
-REFNx=50
-REFNy=50
+REFNx=200
+REFNy=4
 REFCFL=0.5
 PWRbasis=2.
-REFtmax=10.
+REFtmax=1.
 # Number of points for the convergence analysis
-NMAX=3
+NMAX=5
 
 # Get the line of each parameter
 NNx=$(cat -n $PARAMS | grep "number_cells_x" | cut -f 1)
@@ -63,7 +63,7 @@ do
     Ny=${Ny%.*}
     CFL=$REFCFL #$(echo "$REFCFL / $PWRbasis^($i-1)" | bc -l)
     OutputMod=-1
-    case="IsentropicVortex"
+    case="ShockTube"
 
     dx=$(echo "1./$Nx" | bc -l)
 

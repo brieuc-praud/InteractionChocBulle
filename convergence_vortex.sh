@@ -21,7 +21,7 @@ REFCFL=0.5
 PWRbasis=2.
 REFtmax=10.
 # Number of points for the convergence analysis
-NMAX=3
+NMAX=5
 
 # Get the line of each parameter
 NNx=$(cat -n $PARAMS | grep "number_cells_x" | cut -f 1)

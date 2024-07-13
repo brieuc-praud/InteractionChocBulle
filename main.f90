@@ -8,7 +8,7 @@ Program main
     Implicit None
 
     ! --- Declare the variables
-    Character(100) :: parameters_file ! Name of the parameters file
+    Character(128) :: parameters_file ! Name of the parameters file
     Integer :: i, j ! Loop indices
     Integer :: nb_iterations
     
@@ -105,7 +105,6 @@ Contains
             Call ExplicitEuler(K1vect, Uvect)
             ! Second stage
             Call fillGhosts(K1vect)
-            Call compute_CFL()
             Call ExplicitEuler(K2vect, K1vect)
             Uvect = .5_PR * Uvect + .5_PR * K2vect
         Case (3) ! Strong-Stability Preserving Runge-Kutta 3
@@ -113,12 +112,10 @@ Contains
             Call ExplicitEuler(K1vect, Uvect)
             ! Second stage
             Call fillGhosts(K1vect)
-            Call compute_CFL()
             Call ExplicitEuler(K2vect, K1vect)
             K2vect = .75_PR * Uvect + .25_PR * K2vect
             ! Third stage
             Call fillGhosts(K2vect)
-            Call compute_CFL()
             Call ExplicitEuler(K3vect, K2vect)
             Uvect = 1._PR/3._PR * Uvect + 2._PR/3._PR * K3vect
         Case Default
@@ -136,8 +133,8 @@ Contains
 
         Call compute_Fluxes(Um, fluxF, fluxG)
 
-        Do i=1, imax
-            Do j=1, jmax
+        Do j=1, jmax
+            Do i=1, imax
                 Up(:,i,j) = Um(:,i,j) &
                     & - deltat/deltax * (fluxF(:,i,j) - fluxF(:,i-1,j)) &
                     & - deltat/deltay * (fluxG(:,i,j) - fluxG(:,i,j-1))! &
@@ -185,8 +182,8 @@ Contains
         End Do
 
         ! --- y
-        Do i=1, imax
-            Do j=1, jmax
+        Do j=1, jmax
+            Do i=1, imax
                 Call reconstructAtInterface('y', ULi, URi, &
                     & Uvect(:,i,j-1) ,Uvect(:,i,j), Uvect(:,i,j+1), Uvect(:,i,j+2) )
                 Call compute_bmax( 'y', ULi, by_max )
@@ -252,7 +249,7 @@ Contains
         Do i=1, imax
             Do j=1, jmax
                 Uvect(:,i,j) = Uinit_avg(xm(i), ym(j), nb_quadrature_points)
-                !Uvect(:,i,j) = Uinit(xm(i), ym(j))
+                Uvect(:,i,j) = Uinit(xm(i), ym(j))
             End Do
         End Do
     End Subroutine getInitState

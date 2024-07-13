@@ -1,9 +1,8 @@
 EXE = euler
 F90 = gfortran
-#OPT = -Og -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
 OPT = -O3 -march=native
+#OPT = -Og -pedantic -g -ffpe-trap=invalid,zero,overflow -fbounds-check -fcheck=all -Wall
 OBJ = mod_parameters.o mod_input.o mod_limiters.o mod_fluxes.o mod_cases.o mod_output.o main.o
-#LDFLAGS = -fopenmp
 LDFLAGS = 
 
 
